@@ -41,26 +41,58 @@ int main() {
 
 	WINDOW* main = newwin(std_y-4, std_x-4, 2, 2);
 	int main_y, main_x; getmaxyx(main, main_y, main_x);
-	WINDOW* wfiles = newwin(main_y-2, 50, 3, 2);
+	WINDOW* wfiles = newwin(main_y-2, 50, 3, 4); keypad(wfiles, 1);
 	wbkgd(main, COLOR_PAIR(3));
 	wbkgd(wfiles, COLOR_PAIR(3));
 	wrefresh(stdscr); wrefresh(main); wrefresh(wfiles);
 
 	char *pwd = getcwd(NULL, 0);
-	wattron(main, COLOR_PAIR(4));
-	mvwaddstr(main, 0, 0, pwd);
-	wattroff(main, COLOR_PAIR(4));
-	wrefresh(main);
+	pwd = realloc(pwd, strlen(pwd)+1);
+	strcat(pwd, "/");
 
-	char** ls = list(pwd);
-	while (*ls != NULL) {
-		if (!strcmp(*ls, ".")) {ls++;continue;}
-		waddstr(wfiles, *ls);
-		waddstr(wfiles, "\n");
-		ls++;
+	/* PASS char*pwd somehow to menu. Menu should use dir_up and dir_cd,
+	 * not chdir.
+	 * Remove the log FILE object.
+	 * Solve dirs not chargin completely. I suspect it has something to
+	 * do with the "if (size<top)" part.*/
+
+	struct Binding bind;
+	int keys[9] = {'x','v','u','h','M','r','m','c','D'};
+	int (*binfunc[9])(struct Data*, char*);
+	binfunc[0]=execute; binfunc[1]=view; binfunc[2]=updir;
+	binfunc[3]=hideDot;
+	bind.keys = keys; bind.func = binfunc;
+
+	struct Data data; data.dotfiles=0;
+
+	for (;;) {
+		wmove(main,0,0);wclrtoeol(main);
+		/*char *pwd = getcwd(NULL, 0);*/
+		wattron(main, COLOR_PAIR(4));
+		mvwaddstr(main, 0, 0, pwd);
+		wattroff(main, COLOR_PAIR(4));
+		wrefresh(main);
+
+		struct Callback cb;
+		data.data=pwd;
+
+		char** ls = NULL;
+		int size = list(pwd, &ls, data.dotfiles);
+		alph_sort(ls, size);
+
+		int (*func[size])(struct Data*,void*);void* args[size];
+		for (int i=0;i<size;i++){
+			func[i]=handleFile;
+			args[i]=(void*)ls[i];
+		}
+		cb.func=func;cb.args=args;cb.nmemb=size;
+
+		int res = menu(wfiles, ls, display_files, cb, &data, bind);
+		if (res) {
+			wmove(wfiles,0,0);wclrtobot(wfiles);
+			wrefresh(stdscr);wrefresh(main);wrefresh(wfiles);
+		} else break;
 	}
-	wrefresh(wfiles);
-
-	while(1){if(getch()==10)break;}
+	/*while(1){if(getch()==10)break;}*/
 	endwin();
 }
