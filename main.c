@@ -1,3 +1,4 @@
+#include <curses.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +8,7 @@
 #include "gears.h"
 
 int SERVER_STATUS = 0;
+int popup_menu(struct Data *data, char* file);
 
 int main() {
 	WINDOW* stdscr = initscr();
@@ -60,10 +62,12 @@ int main() {
 	int keys[9] = {'x','v','u','h','M','r','m','c','D'};
 	int (*binfunc[9])(struct Data*, char*);
 	binfunc[0]=execute; binfunc[1]=view; binfunc[2]=updir;
-	binfunc[3]=hideDot;
+	binfunc[3]=hideDot; binfunc[4]=popup_menu;
 	bind.keys = keys; bind.func = binfunc;
 
 	struct Data data; data.dotfiles=0;
+	WINDOW* wins[5] = {stdscr, upbar, lowbar, main, wfiles};
+	data.wins=wins; data.wins_size = 5;
 
 	for (;;) {
 		wmove(main,0,0);wclrtoeol(main);
@@ -95,4 +99,28 @@ int main() {
 	}
 	/*while(1){if(getch()==10)break;}*/
 	endwin();
+}
+
+int popup_menu(struct Data *data, char* file) {
+	WINDOW* win = newwin(7, 14, 1, 0);
+	WINDOW* mwin = newwin(5, 12, 2, 1);
+	wbkgd(win, COLOR_PAIR(1));
+	box(win, ACS_VLINE, ACS_HLINE);
+	wrefresh(win);
+
+	wgetch(win);
+	for (;;) {
+		int res = menu();
+		if (res) {
+			wmove(mwin,0,0);wclrtobot(mwin);
+			wrefresh(win);wrefresh(mwin);
+		} else break;
+	}
+
+	delwin(win);
+	for (int i=0; i<data->wins_size; i++) {
+		touchwin(data->wins[i]);
+		wrefresh(data->wins[i]);
+	}
+	return 1;
 }

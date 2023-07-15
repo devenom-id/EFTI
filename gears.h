@@ -5,6 +5,8 @@ struct Data {
 	void* data;
 	int dotfiles;
 	int ptrs[2];
+	WINDOW** wins;
+	int wins_size;
 };
 struct Callback {
 	int (**func)(struct Data*, void*);

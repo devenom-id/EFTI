@@ -319,7 +319,3 @@ int updir(struct Data *data, char* file) {dir_up(data->data);return 1;}
 int hideDot(struct Data *data, char* file) {
 	data->dotfiles = data->dotfiles ? 0: 1; return 1;
 }
-
-int popup_menu(struct Data *data, char* file) {
-	return 1;
-}
