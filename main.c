@@ -5,20 +5,23 @@
 #include <unistd.h>
 #include <ncurses.h>
 #include <dirent.h>
+#include <locale.h>
 #include "gears.h"
 
 int SERVER_STATUS = 0;
 int popup_menu(struct Data *data, char* file);
 
 int main() {
+	setlocale(LC_ALL, "");
 	WINDOW* stdscr = initscr();
 	curs_set(0);
 	noecho();
 	start_color();
-	init_pair(1, 15, 160); /*red_bg, white_fg*/
-	init_pair(2, 15, 16); /*black_bg, white_fg*/
-	init_pair(3, 15, 237); /*grey_bg, white_fg*/
-	init_pair(4, 207, 237); /*grey_bg, pink_fg*/
+	init_pair(1, 15, 160); /*red bg, white fg*/
+	init_pair(2, 15, 16); /*black bg, white fg*/
+	init_pair(3, 15, 237); /*grey bg, white fg*/
+	init_pair(4, 207, 237); /*grey bg, pink fg*/
+	init_pair(5, 16, 15); /*white bg, black fg*/
 	wbkgd(stdscr, COLOR_PAIR(2));
 
 	int std_y, std_x; getmaxyx(stdscr, std_y, std_x);
@@ -65,7 +68,7 @@ int main() {
 	binfunc[3]=hideDot; binfunc[4]=popup_menu;
 	bind.keys = keys; bind.func = binfunc;
 
-	struct Data data; data.dotfiles=0;
+	struct Data data; struct Fopt fdata; fdata.dotfiles=0; data.data=&fdata;
 	WINDOW* wins[5] = {stdscr, upbar, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 5;
 
@@ -78,10 +81,10 @@ int main() {
 		wrefresh(main);
 
 		struct Callback cb;
-		data.data=pwd;
+		fdata.pwd=pwd;
 
 		char** ls = NULL;
-		int size = list(pwd, &ls, data.dotfiles);
+		int size = list(pwd, &ls, fdata.dotfiles);
 		alph_sort(ls, size);
 
 		int (*func[size])(struct Data*,void*);void* args[size];
@@ -102,15 +105,28 @@ int main() {
 }
 
 int popup_menu(struct Data *data, char* file) {
-	WINDOW* win = newwin(7, 14, 1, 0);
-	WINDOW* mwin = newwin(5, 12, 2, 1);
+	WINDOW* win = newwin(7, 16, 1, 0);
+	WINDOW* mwin = newwin(5, 14, 2, 1);
+	keypad(mwin,1);
 	wbkgd(win, COLOR_PAIR(1));
+	wbkgd(mwin, COLOR_PAIR(1));
 	box(win, ACS_VLINE, ACS_HLINE);
 	wrefresh(win);
 
-	wgetch(win);
+	//wgetch(win);
+	char *ls[4] = {"Start server", "Quick launcher", "Settings", "Close"};
+	struct Callback cb; struct Data _data; struct Binding bind;
+
+	int (*func[4])(struct Data*, void*) = {NULL, NULL, NULL, menu_close};
+	void *args[4] = {NULL, NULL, NULL, NULL};
+	cb.func=func;cb.args=args;cb.nmemb=4;
+
+	bind.nmemb=0;
+
+	struct Nopt nopt; nopt.underline=0; nopt.str_size=15;
+	_data.data = &nopt; _data.wins_size=0;
 	for (;;) {
-		int res = menu();
+		int res = menu(mwin, ls, display_opts, cb, &_data, bind);
 		if (res) {
 			wmove(mwin,0,0);wclrtobot(mwin);
 			wrefresh(win);wrefresh(mwin);

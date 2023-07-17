@@ -1,4 +1,6 @@
+#include <curses.h>
 #include <stdio.h>
+#include <wchar.h>
 #include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -65,7 +67,8 @@ void pr_ls(char **ls, int size) {
 }
 
 void display_opts(WINDOW* win, char **ls, int size, int start, int top, int* ptrs, void* data, int mode) {
-	char str[50]; str[49]=0;
+	struct Nopt* nopt = (struct Nopt*)data;
+	char *str = malloc(nopt->str_size); str[nopt->str_size-1]=0;
 	switch (mode) {
 		case 0:
 			if (size < top) { top = size; }
@@ -74,37 +77,69 @@ void display_opts(WINDOW* win, char **ls, int size, int start, int top, int* ptr
 			wrefresh(win);
 			return;
 		case 1:
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
+			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
 			mvwaddstr(win, ptrs[0], 0, str);
 
-			wattron(win, A_UNDERLINE);
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], strlen(ls[ptrs[1]-1]));
+			if (nopt->underline) wattron(win, A_UNDERLINE); else wattron(win, COLOR_PAIR(5));
+			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]-1], strlen(ls[ptrs[1]-1]));
 			mvwaddstr(win, ptrs[0]-1, 0, str);
-			wattroff(win, A_UNDERLINE);
+			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
 			wrefresh(win);
 			return;
 		case 2:
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
+			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
 			mvwaddstr(win, ptrs[0], 0, str);
 
-			wattron(win, A_UNDERLINE);
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], strlen(ls[ptrs[1]+1]));
+			if (nopt->underline) wattron(win, A_UNDERLINE); else wattron(win, COLOR_PAIR(5));
+			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]+1], strlen(ls[ptrs[1]+1]));
 			mvwaddstr(win, ptrs[0]+1, 0, str);
-			wattroff(win, A_UNDERLINE);
+			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
 			wrefresh(win);
 			return;
 		case 3:
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
-			wattron(win, A_UNDERLINE);
+			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
+			if (nopt->underline) wattron(win, A_UNDERLINE); else wattron(win, COLOR_PAIR(5));
 			mvwaddstr(win, ptrs[0], 0, str);
-			wattroff(win, A_UNDERLINE);
+			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
 			return;
 	}
 }
 
+void reverse(char* str) {
+	int size = strlen(str);
+	for (int i=0; i<(size/2); i++) {
+		char temp = str[i];
+		str[i] = str[size-i-1];
+		str[size-i-1] = temp;
+	}
+}
+
+wchar_t *geticon(char* file) {
+	struct stat st;
+	stat(file, &st);
+	if (S_ISDIR(st.st_mode)) return L"";
+	char *s=NULL; int size = 0;
+	for (int i=strlen(file)-1; i>=0; i--) {
+		s = realloc(s, size+1);
+		s[size] = file[i];
+		if (file[i] == '.') break;
+		size++;
+	}
+	reverse(s);
+	if (!strcmp(s, ".c")) return L" ";
+	else if (!strcmp(s, ".py")) return L"󰌠 ";
+	else if (!strcmp(s, ".sh") || !strcmp(s, ".bash")) return L" ";
+	else if (!strcmp(s, ".java")) return L" ";
+	else if (!strcmp(s, ".js")) return L" ";
+	else if (!strcmp(s, ".cpp")) return L" ";
+	else if (!strcmp(s, ".vim")) return L" ";
+	else if (!strcmp(s, ".rb")) return L" ";
+	else return L"󰦨 ";
+}
+
 void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptrs, void* data, int mode) {
 	char str[50]; str[49]=0;
-	char *pwd = (char*)data;
+	char *pwd = ((struct Fopt*)data)->pwd;
 	char *path = NULL;
 	int len, nsize;
 	struct stat st;
@@ -114,10 +149,11 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			int p=0;
 			for (int i=start; i<top; i++) {
 				len = strlen(ls[i]);
-				char path[len+strlen(data)+1];strcpy(path,pwd);strcat(path,ls[i]);
-				nsize = (len<49) ?  len: 49;
+				char path[len+strlen(pwd)+1];strcpy(path,pwd);strcat(path,ls[i]);
+				nsize = (len<49-2) ?  len: 49-2;
 				stat(path, &st);
-				mvwaddnstr(win, p, 0, ls[i], nsize);
+				mvwaddwstr(win, p, 0, geticon(ls[i]));  /*ADD THIS TO THE OTHER MODES*/
+				mvwaddnstr(win, p, 2, ls[i], nsize);
 				if (S_ISDIR(st.st_mode)) mvwaddch(win, p, nsize, '/');
 				p++;
 			}
@@ -125,17 +161,17 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			return;
 		case 1:
 			len = strlen(ls[ptrs[1]]);
-			path = malloc(len+strlen(data)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
-			nsize = (len<49) ?  len: 49;
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
+			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
+			nsize = (len<49-2) ?  len: 49-2;
+			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddstr(win, ptrs[0], 0, str);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize, '/');
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]-1]);
-			path = realloc(path, len+strlen(data)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
-			nsize = (len<49) ?  len: 49;
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
+			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
+			nsize = (len<49-2) ?  len: 49-2;
+			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]-1], nsize);
 			mvwaddstr(win, ptrs[0]-1, 0, str);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize, '/');
 			wattroff(win, A_UNDERLINE);
@@ -143,17 +179,17 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			return;
 		case 2:
 			len = strlen(ls[ptrs[1]]);
-			path = malloc(len+strlen(data)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
-			nsize = (len<49) ?  len: 49;
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
+			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
+			nsize = (len<49-2) ?  len: 49-2;
+			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddstr(win, ptrs[0], 0, str);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize, '/');
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]+1]);
-			path = realloc(path, len+strlen(data)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
-			nsize = (len<49) ?  len: 49;
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
+			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
+			nsize = (len<49-2) ?  len: 49-2;
+			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]+1], nsize);
 			mvwaddstr(win, ptrs[0]+1, 0, str);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize, '/');
 			wattroff(win, A_UNDERLINE);
@@ -161,9 +197,9 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			return;
 		case 3:
 			len = strlen(ls[ptrs[1]]);
-			path = malloc(len+strlen(data)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
-			nsize = (len<49) ?  len: 49;
-			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
+			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
+			nsize = (len<49-2) ?  len: 49-2;
+			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize);
 			wattron(win, A_UNDERLINE);
 			mvwaddstr(win, ptrs[0], 0, str);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize, '/');
@@ -239,7 +275,7 @@ int menu(WINDOW* win, char** ls, void (*dcb)(WINDOW*,char**,int,int,int,int*,voi
 
 int handleFile(struct Data *data, void* f) {
 	char* name = (char*)f;
-	char* pwd = (char*)data->data;
+	char* pwd = ((struct Fopt*)data->data)->pwd;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
 	struct stat st;
 	stat(path, &st);
@@ -279,15 +315,6 @@ int execute(struct Data *data, char* file) {
 	return 1;
 }
 
-void reverse(char* str) {
-	int size = strlen(str);
-	for (int i=0; i<(size/2); i++) {
-		char temp = str[i];
-		str[i] = str[size-i-1];
-		str[size-i-1] = temp;
-	}
-}
-
 int isImg(char* file) {
 	char *s=NULL; int size = 0;
 	for (int i=strlen(file)-1; i>=0; i--) {
@@ -314,8 +341,18 @@ int view(struct Data *data, char *file) {
 	return 1;
 }
 
-int updir(struct Data *data, char* file) {dir_up(data->data);return 1;}
+int updir(struct Data *data, char* file) {dir_up(((struct Fopt*)data->data)->pwd);return 1;}
 
 int hideDot(struct Data *data, char* file) {
-	data->dotfiles = data->dotfiles ? 0: 1; return 1;
+	struct Fopt* fdata = (struct Fopt*)data->data;
+	fdata->dotfiles = fdata->dotfiles ? 0: 1;
+	return 1;
 }
+
+int menu_close(struct Data *data, void* args) {return 0;}
+
+/*
+   󰌠  
+󰙯  
+   
+*/
