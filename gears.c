@@ -122,7 +122,10 @@ wchar_t *geticon(char* file) {
 	for (int i=strlen(file)-1; i>=0; i--) {
 		s = realloc(s, size+1);
 		s[size] = file[i];
-		if (file[i] == '.') break;
+		if (file[i] == '.') {
+			size++;s = realloc(s,size+1);
+			s[size] = 0;break;
+		}
 		size++;
 	}
 	reverse(s);
@@ -152,9 +155,9 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 				char path[len+strlen(pwd)+1];strcpy(path,pwd);strcat(path,ls[i]);
 				nsize = (len<49-2) ?  len: 49-2;
 				stat(path, &st);
-				mvwaddwstr(win, p, 0, geticon(ls[i]));  /*ADD THIS TO THE OTHER MODES*/
+				mvwaddwstr(win, p, 0, geticon(ls[i]));
 				mvwaddnstr(win, p, 2, ls[i], nsize);
-				if (S_ISDIR(st.st_mode)) mvwaddch(win, p, nsize, '/');
+				if (S_ISDIR(st.st_mode)) mvwaddch(win, p, nsize+2, '/');
 				p++;
 			}
 			wrefresh(win);
@@ -163,17 +166,19 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			len = strlen(ls[ptrs[1]]);
 			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
-			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddstr(win, ptrs[0], 0, str);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize, '/');
+			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
+			mvwaddwstr(win, ptrs[0], 0, geticon(ls[ptrs[1]]));
+			mvwaddnstr(win, ptrs[0], 2, str, nsize);
+			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]-1]);
 			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
 			nsize = (len<49-2) ?  len: 49-2;
-			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]-1], nsize);
-			mvwaddstr(win, ptrs[0]-1, 0, str);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize, '/');
+			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
+			mvwaddwstr(win, ptrs[0]-1, 0, geticon(ls[ptrs[1]-1]));
+			mvwaddnstr(win, ptrs[0]-1, 2, str, nsize);
+			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
 			return;
@@ -181,17 +186,19 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			len = strlen(ls[ptrs[1]]);
 			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
-			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddstr(win, ptrs[0], 0, str);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize, '/');
+			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
+			mvwaddwstr(win, ptrs[0], 0, geticon(ls[ptrs[1]]));
+			mvwaddnstr(win, ptrs[0], 2, str, nsize);
+			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]+1]);
 			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
 			nsize = (len<49-2) ?  len: 49-2;
-			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]+1], nsize);
-			mvwaddstr(win, ptrs[0]+1, 0, str);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize, '/');
+			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
+			mvwaddwstr(win, ptrs[0]+1, 0, geticon(ls[ptrs[1]+1]));
+			mvwaddnstr(win, ptrs[0]+1, 2, str, nsize);
+			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
 			return;
@@ -199,10 +206,11 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			len = strlen(ls[ptrs[1]]);
 			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
-			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize);
+			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize+2);
 			wattron(win, A_UNDERLINE);
-			mvwaddstr(win, ptrs[0], 0, str);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize, '/');
+			mvwaddwstr(win, ptrs[0], 0, geticon(ls[ptrs[1]]));
+			mvwaddnstr(win, ptrs[0], 2, str, nsize);
+			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
 			wattroff(win, A_UNDERLINE);
 			return;
 	}
@@ -352,7 +360,5 @@ int hideDot(struct Data *data, char* file) {
 int menu_close(struct Data *data, void* args) {return 0;}
 
 /*
-   󰌠  
 󰙯  
-   
 */
