@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include "gears.h"
+#include "libncread/ncread.h"
 
 void uptime(char* buff) {
 	struct sysinfo si;
@@ -122,22 +123,23 @@ wchar_t *geticon(char* file) {
 	for (int i=strlen(file)-1; i>=0; i--) {
 		s = realloc(s, size+1);
 		s[size] = file[i];
-		if (file[i] == '.') {
-			size++;s = realloc(s,size+1);
-			s[size] = 0;break;
-		}
+		if (file[i] == '.') {size++;break;}
 		size++;
 	}
+	s=realloc(s,size+1); s[size]=0;
 	reverse(s);
-	if (!strcmp(s, ".c")) return L" ";
-	else if (!strcmp(s, ".py")) return L"󰌠 ";
-	else if (!strcmp(s, ".sh") || !strcmp(s, ".bash")) return L" ";
-	else if (!strcmp(s, ".java")) return L" ";
-	else if (!strcmp(s, ".js")) return L" ";
-	else if (!strcmp(s, ".cpp")) return L" ";
-	else if (!strcmp(s, ".vim")) return L" ";
-	else if (!strcmp(s, ".rb")) return L" ";
-	else return L"󰦨 ";
+	wchar_t *ico;
+	if (!strcmp(s, ".c")) ico=L" ";
+	else if (!strcmp(s, ".py")) ico=L"󰌠 ";
+	else if (!strcmp(s, ".sh") || !strcmp(s, ".bash")) ico=L" ";
+	else if (!strcmp(s, ".java")) ico=L" ";
+	else if (!strcmp(s, ".js")) ico=L" ";
+	else if (!strcmp(s, ".cpp")) ico=L" ";
+	else if (!strcmp(s, ".vim")) ico=L" ";
+	else if (!strcmp(s, ".rb")) ico=L" ";
+	else ico=L"󰦨 ";
+	free(s);
+	return ico;
 }
 
 void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptrs, void* data, int mode) {
@@ -152,13 +154,15 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			int p=0;
 			for (int i=start; i<top; i++) {
 				len = strlen(ls[i]);
-				char path[len+strlen(pwd)+1];strcpy(path,pwd);strcat(path,ls[i]);
+				char *path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[i]);
 				nsize = (len<49-2) ?  len: 49-2;
 				stat(path, &st);
-				mvwaddwstr(win, p, 0, geticon(ls[i]));
+				mvwaddwstr(win, p, 0, geticon(path));
 				mvwaddnstr(win, p, 2, ls[i], nsize);
 				if (S_ISDIR(st.st_mode)) mvwaddch(win, p, nsize+2, '/');
+				wrefresh(win); //remove
 				p++;
+				free(path);
 			}
 			wrefresh(win);
 			return;
@@ -167,7 +171,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddwstr(win, ptrs[0], 0, geticon(ls[ptrs[1]]));
+			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
@@ -176,7 +180,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
-			mvwaddwstr(win, ptrs[0]-1, 0, geticon(ls[ptrs[1]-1]));
+			mvwaddwstr(win, ptrs[0]-1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]-1, 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
 			wattroff(win, A_UNDERLINE);
@@ -187,7 +191,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddwstr(win, ptrs[0], 0, geticon(ls[ptrs[1]]));
+			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
@@ -196,19 +200,20 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
-			mvwaddwstr(win, ptrs[0]+1, 0, geticon(ls[ptrs[1]+1]));
+			mvwaddwstr(win, ptrs[0]+1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]+1, 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
 			return;
 		case 3:
+			if (!size) return;
 			len = strlen(ls[ptrs[1]]);
 			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize+2);
 			wattron(win, A_UNDERLINE);
-			mvwaddwstr(win, ptrs[0], 0, geticon(ls[ptrs[1]]));
+			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
 			wattroff(win, A_UNDERLINE);
@@ -252,7 +257,7 @@ int menu(WINDOW* win, char** ls, void (*dcb)(WINDOW*,char**,int,int,int,int*,voi
 			}
 		}
 		else if (ch == KEY_DOWN) {
-			if (sp == size-1) continue;
+			if (sp == size-1 || !size) continue;
 			if (sp == top-1) {
 				wscrl(win, 1);
 				top++;sp++;
@@ -269,13 +274,15 @@ int menu(WINDOW* win, char** ls, void (*dcb)(WINDOW*,char**,int,int,int,int*,voi
 		}
 		else if (ch == 27) {return 0;}
 		else if (ch == 10) {
+			if(!size)continue;
 			data->ptrs[0] = p; data->ptrs[1] = sp;
 			int res = cb.func[sp](data, cb.args[sp]);
 			return res;
 		} else {
 			int index = search_binding(ch, bind);
 			if (index != -1) {
-				return bind.func[index](data, ls[sp]);
+				char* param = size ? ls[sp] : NULL;
+				return bind.func[index](data, param);
 			}
 		}
 	}
@@ -292,11 +299,10 @@ int handleFile(struct Data *data, void* f) {
 		endwin();
 		int pid = fork();
 		if (!pid) {
-			char *cpy = malloc(strlen(pwd)+strlen(name)+2);
+			char *cpy = malloc(strlen(pwd)+strlen(name)+1);
 			strcpy(cpy, pwd);
-			cpy[strlen(pwd)] = '/';
 			strcat(cpy, name);
-			cpy[strlen(pwd)+strlen(name)+1] = 0;
+			cpy[strlen(pwd)+strlen(name)] = 0;
 			char *argv[] = {"/usr/bin/nvim", cpy, NULL};
 			execvp("nvim", argv);
 			exit(1);
@@ -308,13 +314,17 @@ int handleFile(struct Data *data, void* f) {
 }
 
 int execute(struct Data *data, char* file) {
+	if (!file) return 1;
+	char *pwd = ((struct Fopt*)data->data)->pwd;
+	char*path = malloc(strlen(pwd)+strlen(file)+1);
+	strcpy(path,pwd);strcat(path,file);
 	struct stat st;
-	stat(file, &st);
+	stat(path, &st);
 	if (!S_ISDIR(st.st_mode) && st.st_mode & S_IXUSR) {
 		endwin();
 		int PID = fork();
 		if (!PID) {
-			execl(file, file, NULL);
+			execl(path, path, NULL);
 			exit(1);
 		}
 		wait(NULL);
@@ -324,26 +334,32 @@ int execute(struct Data *data, char* file) {
 }
 
 int isImg(char* file) {
+	if (!file) return 1;
 	char *s=NULL; int size = 0;
 	for (int i=strlen(file)-1; i>=0; i--) {
 		s = realloc(s, size+1);
 		s[size] = file[i];
-		if (file[i] == '.') break;
+		if (file[i] == '.') {size++;break;}
 		size++;
 	}
+	s=realloc(s,size+1);s[size]=0;
 	reverse(s);
 	if (!strcmp(s, ".png") || !strcmp(s, ".jpg")) return 1;
 	return 0;
 }
 
 int view(struct Data *data, char *file) {
+	char *pwd=((struct Fopt*)data->data)->pwd;
+	if (!file) return 1;
 	struct stat st;
 	stat(file, &st);
 	if (S_ISDIR(st.st_mode) || !isImg(file)) return 1;
 	int PID = fork();
 	if (!PID) {
+		char*param = malloc(strlen(pwd)+strlen(file)+1);
+		strcpy(param,pwd);strcat(param,file);
 		close(0);close(1);close(2);
-		execlp("feh", file, NULL);
+		execlp("feh", "feh", param, NULL);
 		exit(1);
 	}
 	return 1;
@@ -359,6 +375,128 @@ int hideDot(struct Data *data, char* file) {
 
 int menu_close(struct Data *data, void* args) {return 0;}
 
+int fileRename(struct Data *data, char* file) {
+	if (!file) return 1;
+	char *pwd = ((struct Fopt*)data->data)->pwd;
+	WINDOW* stdscr = data->wins[0];
+	int y,x; getmaxyx(stdscr, y, x);
+	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
+	wbkgd(win, COLOR_PAIR(1));
+	keypad(win, 1);
+	wrefresh(win);
+	getmaxyx(win, y, x);
+	mvwaddstr(win, 0, x/2-3, "Rename");
+	mvwaddstr(win, 1, 1, "Name:");
+	wrefresh(win);
+	char *buff;
+	ampsread(win, &buff, 1, 7, 20, 20, 0);
+	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	if (buff==NULL) return 1;
+	char *A = malloc(strlen(pwd)+strlen(file)+1);
+	char *B = malloc(strlen(pwd)+strlen(buff)+1);
+	strcpy(A, pwd); strcat(A, file);
+	strcpy(B, pwd); strcat(B, buff);
+	rename(A, B);
+	return 1;
+}
+
+int fselect(struct Data *data, char* file) {
+	if (!file) return 1;
+	struct Fopt *fdata = (struct Fopt*)data->data;
+	char *pwd = fdata->pwd;
+	if (fdata->tmp_path==NULL) {
+		char *path = malloc(strlen(pwd)+strlen(file)+1);
+		strcpy(path, pwd); strcat(path, file);
+		fdata->tmp_path = path;
+		mvwaddwstr(data->wins[1],0, 2, L"");
+	} else {
+		fdata->tmp_path=NULL;
+		mvwaddstr(data->wins[1],0, 2, " ");
+	}
+	wrefresh(data->wins[1]);
+	return 1;
+}
+
+int fmove(struct Data *data, char* file) {
+	struct Fopt *fdata = (struct Fopt*)data->data;
+	if (fdata->tmp_path==NULL) return 1;
+	char* pwd = fdata->pwd;
+	char* spath = fdata->tmp_path;
+
+	WINDOW* stdscr = data->wins[0];
+	int y,x; getmaxyx(stdscr, y, x);
+	WINDOW* win = newwin(4, 40, y/2-2, x/2-15);
+	wbkgd(win, COLOR_PAIR(1));
+	keypad(win, 1);
+	wrefresh(win);
+	getmaxyx(win, y, x);
+	mvwaddstr(win, 1, 1, "Press 'y' to MOVE the following file");
+	mvwaddstr(win, 2, 1, spath);
+	wrefresh(win);
+	int ch = wgetch(win);
+	if (ch=='y') {
+		char *s=NULL; int size = 0;
+		for (int i=strlen(spath)-1; i>=0; i--) {
+			s = realloc(s, size+1);
+			if (spath[i] == '/') {break;}
+			s[size] = spath[i];
+			size++;
+		}
+		s=realloc(s,size+1);s[size]=0;
+		reverse(s);
+		char* path = malloc(strlen(pwd)+strlen(s)+1);
+		strcpy(path, pwd);strcat(path, s);
+		rename(spath, path);
+		fdata->tmp_path=NULL;
+		mvwaddstr(data->wins[1],0, 2, " ");
+		wrefresh(data->wins[1]);
+	}
+	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	return 1;
+}
+
+int fcopy(struct Data *data, char* file) {
+	struct Fopt*fdata = (struct Fopt*)data->data;
+	char *pwd = fdata->pwd;
+	char *spath = fdata->tmp_path;
+	char *s=NULL; int size = 0;
+	for (int i=strlen(spath)-1; i>=0; i--) {
+		s = realloc(s, size+1);
+		if (spath[i] == '/') {break;}
+		s[size] = spath[i];
+		size++;
+	}
+	s=realloc(s,size+1);s[size]=0;
+	reverse(s);
+	char *path = malloc(strlen(pwd)+strlen(s)+1);
+	strcpy(path,pwd);strcat(pwd,s);
+	/*FIXME CONTINUE HERE FIXME*/
+	return 1;
+}
+
+int fdelete(struct Data *data, char* file) {
+	if (!file) return 1;
+
+	WINDOW* stdscr = data->wins[0];
+	int y,x; getmaxyx(stdscr, y, x);
+	WINDOW* win = newwin(4, 40, y/2-2, x/2-15);
+	wbkgd(win, COLOR_PAIR(1));
+	keypad(win, 1);
+	wrefresh(win);
+	getmaxyx(win, y, x);
+	mvwaddstr(win, 1, 1, "Press 'y' to DELETE the following file");
+	mvwaddstr(win, 2, x/2-strlen(file)/2, file);
+	wrefresh(win);
+	int ch = wgetch(win);
+	if (ch == 'y') {
+		char *pwd = ((struct Fopt*)data->data)->pwd;
+		char *path = malloc(strlen(pwd)+strlen(file)+1);
+		strcpy(path, pwd);strcat(path, file);
+		remove(path);
+	}
+	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	return 1;
+}
 /*
-󰙯  
+󰙯  
 */

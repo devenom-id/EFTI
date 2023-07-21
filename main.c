@@ -52,7 +52,7 @@ int main() {
 	wrefresh(stdscr); wrefresh(main); wrefresh(wfiles);
 
 	char *pwd = getcwd(NULL, 0);
-	pwd = realloc(pwd, strlen(pwd)+1);
+	pwd = realloc(pwd, strlen(pwd)+2);
 	strcat(pwd, "/");
 
 	/* PASS char*pwd somehow to menu. Menu should use dir_up and dir_cd,
@@ -62,13 +62,15 @@ int main() {
 	 * do with the "if (size<top)" part.*/
 
 	struct Binding bind;
-	int keys[9] = {'x','v','u','h','M','r','m','c','D'};
-	int (*binfunc[9])(struct Data*, char*);
+	int keys[10] = {'x','v','u','h','M','r','s','m','c','D'};
+	int (*binfunc[10])(struct Data*, char*);
 	binfunc[0]=execute; binfunc[1]=view; binfunc[2]=updir;
-	binfunc[3]=hideDot; binfunc[4]=popup_menu;
-	bind.keys = keys; bind.func = binfunc;
+	binfunc[3]=hideDot; binfunc[4]=popup_menu; binfunc[5]=fileRename;
+	binfunc[6]=fselect; binfunc[7]=fmove; binfunc[8]=NULL;
+	binfunc[9]=fdelete;
+	bind.keys = keys; bind.func = binfunc; bind.nmemb=10;
 
-	struct Data data; struct Fopt fdata; fdata.dotfiles=0; data.data=&fdata;
+	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
 	WINDOW* wins[5] = {stdscr, upbar, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 5;
 

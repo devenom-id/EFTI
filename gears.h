@@ -1,9 +1,17 @@
 #ifndef GEARS_H
 #define GEARS_H
 #include <ncurses.h>
+struct Nopt {
+	int str_size;
+	int underline;
+};
+struct Fopt {
+	int dotfiles;
+	char* pwd;
+	char* tmp_path;
+};
 struct Data {
 	void* data;
-	int dotfiles;
 	int ptrs[2];
 	WINDOW** wins;
 	int wins_size;
@@ -32,4 +40,10 @@ int execute(struct Data *data, char* file);
 int view(struct Data *data, char *file);
 int updir(struct Data *data, char *file);
 int hideDot(struct Data *data, char* file);
+int menu_close(struct Data *data, void* args);
+int fileRename(struct Data *data, char* file);
+int fselect(struct Data *data, char* file);
+int fmove(struct Data *data, char* file);
+int fcopy(struct Data *data, char* file);
+int fdelete(struct Data *data, char* file);
 #endif
