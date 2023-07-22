@@ -46,4 +46,6 @@ int fselect(struct Data *data, char* file);
 int fmove(struct Data *data, char* file);
 int fcopy(struct Data *data, char* file);
 int fdelete(struct Data *data, char* file);
+int fnew(struct Data *data, char* file);
+int dnew(struct Data *data, char* file);
 #endif

@@ -62,13 +62,13 @@ int main() {
 	 * do with the "if (size<top)" part.*/
 
 	struct Binding bind;
-	int keys[10] = {'x','v','u','h','M','r','s','m','c','D'};
-	int (*binfunc[10])(struct Data*, char*);
+	int keys[12] = {'x','v','u','h','M','r','s','m','c','D','n','N'};
+	int (*binfunc[12])(struct Data*, char*);
 	binfunc[0]=execute; binfunc[1]=view; binfunc[2]=updir;
 	binfunc[3]=hideDot; binfunc[4]=popup_menu; binfunc[5]=fileRename;
-	binfunc[6]=fselect; binfunc[7]=fmove; binfunc[8]=NULL;
-	binfunc[9]=fdelete;
-	bind.keys = keys; bind.func = binfunc; bind.nmemb=10;
+	binfunc[6]=fselect; binfunc[7]=fmove; binfunc[8]=fcopy;
+	binfunc[9]=fdelete; binfunc[10]=fnew; binfunc[11]=dnew;
+	bind.keys = keys; bind.func = binfunc; bind.nmemb=12;
 
 	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
 	WINDOW* wins[5] = {stdscr, upbar, lowbar, main, wfiles};

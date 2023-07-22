@@ -6,11 +6,21 @@
 #include <dirent.h>
 #include <ncurses.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include "gears.h"
 #include "libncread/ncread.h"
+
+int _;
+void handleError(int c, int n, const char* str) {
+	if (c!=n)return;
+	(void) endwin();
+	(void) puts("\t\033[1;31mEFTI has encountered an error.\033[0m");
+	(void) perror(str);
+	exit(1);
+}
 
 void uptime(char* buff) {
 	struct sysinfo si;
@@ -127,7 +137,7 @@ wchar_t *geticon(char* file) {
 		size++;
 	}
 	s=realloc(s,size+1); s[size]=0;
-	reverse(s);
+	(void) reverse(s);
 	wchar_t *ico;
 	if (!strcmp(s, ".c")) ico=L" ";
 	else if (!strcmp(s, ".py")) ico=L"󰌠 ";
@@ -183,6 +193,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			mvwaddwstr(win, ptrs[0]-1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]-1, 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
+			free(path);
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
 			return;
@@ -203,6 +214,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			mvwaddwstr(win, ptrs[0]+1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]+1, 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
+			free(path);
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
 			return;
@@ -216,6 +228,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
+			free(path);
 			wattroff(win, A_UNDERLINE);
 			return;
 	}
@@ -330,6 +343,7 @@ int execute(struct Data *data, char* file) {
 		wait(NULL);
 		refresh();
 	}
+	free(path);
 	return 1;
 }
 
@@ -343,8 +357,9 @@ int isImg(char* file) {
 		size++;
 	}
 	s=realloc(s,size+1);s[size]=0;
-	reverse(s);
-	if (!strcmp(s, ".png") || !strcmp(s, ".jpg")) return 1;
+	(void) reverse(s);
+	if (!strcmp(s, ".png") || !strcmp(s, ".jpg")) {free(s);return 1;}
+	free(s);
 	return 0;
 }
 
@@ -397,6 +412,7 @@ int fileRename(struct Data *data, char* file) {
 	strcpy(A, pwd); strcat(A, file);
 	strcpy(B, pwd); strcat(B, buff);
 	rename(A, B);
+	free(buff); free(A); free(B);
 	return 1;
 }
 
@@ -410,6 +426,7 @@ int fselect(struct Data *data, char* file) {
 		fdata->tmp_path = path;
 		mvwaddwstr(data->wins[1],0, 2, L"");
 	} else {
+		free(fdata->tmp_path);
 		fdata->tmp_path=NULL;
 		mvwaddstr(data->wins[1],0, 2, " ");
 	}
@@ -443,11 +460,19 @@ int fmove(struct Data *data, char* file) {
 			size++;
 		}
 		s=realloc(s,size+1);s[size]=0;
-		reverse(s);
+		(void) reverse(s);
 		char* path = malloc(strlen(pwd)+strlen(s)+1);
 		strcpy(path, pwd);strcat(path, s);
-		rename(spath, path);
+		if (rename(spath, path) == -1) {
+			endwin();
+			perror("Rename");
+			exit(1);
+		}
+		free(s); free(path);
+
+		free(fdata->tmp_path);
 		fdata->tmp_path=NULL;
+
 		mvwaddstr(data->wins[1],0, 2, " ");
 		wrefresh(data->wins[1]);
 	}
@@ -455,8 +480,24 @@ int fmove(struct Data *data, char* file) {
 	return 1;
 }
 
+void copy(char *A, char *B) {
+	struct stat st;
+	stat(A, &st);
+	if S_ISDIR(st.st_mode) return;
+	FILE *FA = fopen(A, "r");
+	char *buff = malloc(st.st_size);
+	fread(buff, 1, st.st_size, FA);
+
+	FILE *FB = fopen(B, "w");
+	fwrite(buff, 1, st.st_size, FB);
+
+	fclose(FA); fclose(FB);
+	free(buff);
+}
+
 int fcopy(struct Data *data, char* file) {
 	struct Fopt*fdata = (struct Fopt*)data->data;
+	if (fdata->tmp_path==NULL) return 1;
 	char *pwd = fdata->pwd;
 	char *spath = fdata->tmp_path;
 	char *s=NULL; int size = 0;
@@ -467,10 +508,17 @@ int fcopy(struct Data *data, char* file) {
 		size++;
 	}
 	s=realloc(s,size+1);s[size]=0;
-	reverse(s);
+	(void) reverse(s);
 	char *path = malloc(strlen(pwd)+strlen(s)+1);
-	strcpy(path,pwd);strcat(pwd,s);
-	/*FIXME CONTINUE HERE FIXME*/
+	strcpy(path,pwd);strcat(path,s);
+	(void)copy(spath,path);
+	
+	free(fdata->tmp_path);
+	fdata->tmp_path = NULL;
+
+	mvwaddstr(data->wins[1],0, 2, " ");
+	wrefresh(data->wins[1]);
+	free(s); free(path);
 	return 1;
 }
 
@@ -478,23 +526,74 @@ int fdelete(struct Data *data, char* file) {
 	if (!file) return 1;
 
 	WINDOW* stdscr = data->wins[0];
-	int y,x; getmaxyx(stdscr, y, x);
+	int y,x; (void)getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(4, 40, y/2-2, x/2-15);
-	wbkgd(win, COLOR_PAIR(1));
-	keypad(win, 1);
-	wrefresh(win);
-	getmaxyx(win, y, x);
-	mvwaddstr(win, 1, 1, "Press 'y' to DELETE the following file");
-	mvwaddstr(win, 2, x/2-strlen(file)/2, file);
-	wrefresh(win);
+	(void) wbkgd(win, COLOR_PAIR(1));
+	(void) keypad(win, 1);
+	(void) wrefresh(win);
+	(void) getmaxyx(win, y, x);
+	(void) mvwaddstr(win, 1, 1, "Press 'y' to DELETE the following file");
+	(void) mvwaddstr(win, 2, x/2-strlen(file)/2, file);
+	(void) wrefresh(win);
 	int ch = wgetch(win);
 	if (ch == 'y') {
 		char *pwd = ((struct Fopt*)data->data)->pwd;
 		char *path = malloc(strlen(pwd)+strlen(file)+1);
-		strcpy(path, pwd);strcat(path, file);
-		remove(path);
+		(void) strcpy(path, pwd); (void) strcat(path, file);
+		_= remove(path); handleError(_, -1, "fdelete: remove");
+		(void) free(path);
 	}
-	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	(void) delwin(win); (void)touchwin(data->wins[3]); (void)wrefresh(data->wins[3]);
+	return 1;
+}
+
+int fnew(struct Data *data, char* file) {
+	char *pwd = ((struct Fopt*)data->data)->pwd;
+	WINDOW* stdscr = data->wins[0];
+	int y,x; getmaxyx(stdscr, y, x);
+	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
+	(void) wbkgd(win, COLOR_PAIR(1));
+	(void) keypad(win, 1);
+	(void) wrefresh(win);
+	(void) getmaxyx(win, y, x);
+	(void) mvwaddstr(win, 0, x/2-4, "New file");
+	(void) mvwaddstr(win, 1, 1, "Name:");
+	(void) wrefresh(win);
+	char *buff;
+	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
+	(void) delwin(win); (void)touchwin(data->wins[3]); (void)wrefresh(data->wins[3]);
+	if (buff==NULL) return 1;
+	char *path = malloc(strlen(pwd)+strlen(buff)+1);
+	(void) strcpy(path,pwd); (void)strcat(path, buff);
+	struct stat st;
+	if (stat(path, &st) != -1) return 1;
+	FILE *F = fopen(path, "w"); (void)fclose(F);
+	(void) free(path);
+	return 1;
+}
+
+int dnew(struct Data *data, char* file) {
+	char *pwd = ((struct Fopt*)data->data)->pwd;
+	WINDOW* stdscr = data->wins[0];
+	int y,x; (void) getmaxyx(stdscr, y, x);
+	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
+	(void) wbkgd(win, COLOR_PAIR(1));
+	(void) keypad(win, 1);
+	(void) wrefresh(win);
+	(void) getmaxyx(win, y, x);
+	(void) mvwaddstr(win, 0, x/2-6, "New directory");
+	(void) mvwaddstr(win, 1, 1, "Name:");
+	(void) wrefresh(win);
+	char *buff;
+	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
+	(void) delwin(win); (void)touchwin(data->wins[3]); (void)wrefresh(data->wins[3]);
+	if (buff==NULL) return 1;
+	char *path = malloc(strlen(pwd)+strlen(buff)+1);
+	(void) strcpy(path, pwd); (void)strcat(path, buff);
+	struct stat st;
+	if (stat(path, &st) != -1) return 1;
+	_= mkdir(path, 0700); handleError(_,-1,"dnew: mkdir");
+	(void) free(path);
 	return 1;
 }
 /*
