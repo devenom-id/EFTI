@@ -1,7 +1,7 @@
 CC=gcc
-CFLAGS=
-LIBS=-lncurses
+CFLAGS=-D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
+LIBS=-lncursesw
 
 
 efti: main.c gears.c
-	$(CC) -o efti main.c gears.c $(CFLAGS) $(LIBS)
+	$(CC) -o efti main.c gears.c libncread/ncread.c libncread/vector.c $(CFLAGS) $(LIBS) -g
