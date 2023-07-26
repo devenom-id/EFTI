@@ -29,16 +29,18 @@ struct Binding {
 };
 struct Wobj {
 	WINDOW* win;
-	struct Data data;
+	struct Data *data;
 	struct Callback cb;
+	struct Binding bind;
 	int local;
 	char* pwd;
+	char** ls;
 };
 struct TabList {
 	char *list;
 	int point;
 	int size;
-	struct Wobj win;
+	struct Wobj wobj;
 };
 void uptime(char* buff);
 void dir_up(char *pwd);
@@ -48,7 +50,7 @@ void alph_sort(char** ls, int size);
 void pr_ls(char **ls, int size);
 void display_opts(WINDOW* win, char **ls, int size, int start, int top, int* ptrs, void* data, int mode);
 void display_files(WINDOW* win, char **ls, int size, int start, int top, int* ptrs, void* data, int mode);
-int menu(WINDOW* win, char** ls, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,int), struct Callback cb, struct Data *data, struct Binding bind);
+int menu(struct TabList *tl, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,int));
 int handleFile(struct Data *data, void* f);
 int execute(struct Data *data, char* file);
 int view(struct Data *data, char *file);

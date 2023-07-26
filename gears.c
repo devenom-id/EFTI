@@ -137,7 +137,7 @@ wchar_t *geticon(char* file) {
 		size++;
 	}
 	s=realloc(s,size+1); s[size]=0;
-	(void) reverse(s);
+	reverse(s);
 	wchar_t *ico;
 	if (!strcmp(s, ".c")) ico=L" ";
 	else if (!strcmp(s, ".py")) ico=L"󰌠 ";
@@ -241,7 +241,11 @@ int search_binding(int ch, struct Binding bind) {
 	return -1;
 }
 
-int menu(WINDOW* win, char** ls, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,int), struct Callback cb, struct Data *data, struct Binding bind) {
+int menu(struct TabList *tl, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,int)) {
+	struct Wobj wobj = tl->wobj;
+	struct Callback cb = wobj.cb; struct Data *data = wobj.data;
+	struct Binding bind = wobj.bind;
+	char **ls = wobj.ls; char *pwd = wobj.pwd; WINDOW* win = wobj.win;
 	int y; int x; getmaxyx(win, y, x);
 	int p = 0;
 	int sp = 0;
@@ -357,7 +361,7 @@ int isImg(char* file) {
 		size++;
 	}
 	s=realloc(s,size+1);s[size]=0;
-	(void) reverse(s);
+	reverse(s);
 	if (!strcmp(s, ".png") || !strcmp(s, ".jpg")) {free(s);return 1;}
 	free(s);
 	return 0;
@@ -460,7 +464,7 @@ int fmove(struct Data *data, char* file) {
 			size++;
 		}
 		s=realloc(s,size+1);s[size]=0;
-		(void) reverse(s);
+		reverse(s);
 		char* path = malloc(strlen(pwd)+strlen(s)+1);
 		strcpy(path, pwd);strcat(path, s);
 		if (rename(spath, path) == -1) {
@@ -508,7 +512,7 @@ int fcopy(struct Data *data, char* file) {
 		size++;
 	}
 	s=realloc(s,size+1);s[size]=0;
-	(void) reverse(s);
+	reverse(s);
 	char *path = malloc(strlen(pwd)+strlen(s)+1);
 	(void) strcpy(path,pwd); (void)strcat(path,s);
 	(void) copy(spath,path);
@@ -516,8 +520,8 @@ int fcopy(struct Data *data, char* file) {
 	(void) free(fdata->tmp_path);
 	fdata->tmp_path = NULL;
 
-	(void) mvwaddstr(data->wins[1],0, 2, " ");
-	(void) wrefresh(data->wins[1]);
+	mvwaddstr(data->wins[1],0, 2, " ");
+	wrefresh(data->wins[1]);
 	(void) free(s); (void)free(path);
 	return 1;
 }
@@ -528,13 +532,13 @@ int fdelete(struct Data *data, char* file) {
 	WINDOW* stdscr = data->wins[0];
 	int y,x; (void)getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(4, 40, y/2-2, x/2-15);
-	(void) wbkgd(win, COLOR_PAIR(1));
-	(void) keypad(win, 1);
-	(void) wrefresh(win);
-	(void) getmaxyx(win, y, x);
-	(void) mvwaddstr(win, 1, 1, "Press 'y' to DELETE the following file");
-	(void) mvwaddstr(win, 2, x/2-strlen(file)/2, file);
-	(void) wrefresh(win);
+	wbkgd(win, COLOR_PAIR(1));
+	keypad(win, 1);
+	wrefresh(win);
+	getmaxyx(win, y, x);
+	mvwaddstr(win, 1, 1, "Press 'y' to DELETE the following file");
+	mvwaddstr(win, 2, x/2-strlen(file)/2, file);
+	wrefresh(win);
 	int ch = wgetch(win);
 	if (ch == 'y') {
 		char *pwd = ((struct Fopt*)data->data)->pwd;
@@ -543,7 +547,7 @@ int fdelete(struct Data *data, char* file) {
 		_= remove(path); handleError(_, -1, "fdelete: remove");
 		(void) free(path);
 	}
-	(void) delwin(win); (void)touchwin(data->wins[3]); (void)wrefresh(data->wins[3]);
+	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
 	return 1;
 }
 
@@ -552,16 +556,16 @@ int fnew(struct Data *data, char* file) {
 	WINDOW* stdscr = data->wins[0];
 	int y,x; getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
-	(void) wbkgd(win, COLOR_PAIR(1));
-	(void) keypad(win, 1);
-	(void) wrefresh(win);
-	(void) getmaxyx(win, y, x);
-	(void) mvwaddstr(win, 0, x/2-4, "New file");
-	(void) mvwaddstr(win, 1, 1, "Name:");
-	(void) wrefresh(win);
+	wbkgd(win, COLOR_PAIR(1));
+	keypad(win, 1);
+	wrefresh(win);
+	getmaxyx(win, y, x);
+	mvwaddstr(win, 0, x/2-4, "New file");
+	mvwaddstr(win, 1, 1, "Name:");
+	wrefresh(win);
 	char *buff;
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
-	(void) delwin(win); (void)touchwin(data->wins[3]); (void)wrefresh(data->wins[3]);
+	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);
 	(void) strcpy(path,pwd); (void)strcat(path, buff);
@@ -577,16 +581,16 @@ int dnew(struct Data *data, char* file) {
 	WINDOW* stdscr = data->wins[0];
 	int y,x; (void) getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
-	(void) wbkgd(win, COLOR_PAIR(1));
-	(void) keypad(win, 1);
-	(void) wrefresh(win);
-	(void) getmaxyx(win, y, x);
-	(void) mvwaddstr(win, 0, x/2-6, "New directory");
-	(void) mvwaddstr(win, 1, 1, "Name:");
-	(void) wrefresh(win);
+	wbkgd(win, COLOR_PAIR(1));
+	keypad(win, 1);
+	wrefresh(win);
+	getmaxyx(win, y, x);
+	mvwaddstr(win, 0, x/2-6, "New directory");
+	mvwaddstr(win, 1, 1, "Name:");
+	wrefresh(win);
 	char *buff;
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
-	(void) delwin(win); (void)touchwin(data->wins[3]); (void)wrefresh(data->wins[3]);
+	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);
 	(void) strcpy(path, pwd); (void)strcat(path, buff);

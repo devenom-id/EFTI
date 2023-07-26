@@ -35,7 +35,7 @@ int main() {
 	refresh();wrefresh(upbar);wrefresh(tabwin);wrefresh(lowbar);
 
 	wbkgd(upbar, COLOR_PAIR(1));
-	/*wbkgd(tabwin, COLOR_PAIR(6));*/
+	wbkgd(tabwin, COLOR_PAIR(2));
 	wbkgd(lowbar, COLOR_PAIR(1));
 	wrefresh(upbar); wrefresh(tabwin); wrefresh(lowbar);
 
@@ -63,24 +63,22 @@ int main() {
 	pwd = realloc(pwd, strlen(pwd)+2);
 	strcat(pwd, "/");
 
-	/* PASS char*pwd somehow to menu. Menu should use dir_up and dir_cd,
-	 * not chdir.
-	 * Remove the log FILE object.
-	 * Solve dirs not chargin completely. I suspect it has something to
-	 * do with the "if (size<top)" part.*/
-
 	struct Binding bind;
 	int keys[12] = {'x','v','u','h','M','r','s','m','c','D','n','N'};
-	int (*binfunc[12])(struct Data*, char*);
-	binfunc[0]=execute; binfunc[1]=view; binfunc[2]=updir;
-	binfunc[3]=hideDot; binfunc[4]=popup_menu; binfunc[5]=fileRename;
-	binfunc[6]=fselect; binfunc[7]=fmove; binfunc[8]=fcopy;
-	binfunc[9]=fdelete; binfunc[10]=fnew; binfunc[11]=dnew;
+	int (*binfunc[12])(struct Data*, char*) = {execute, view, updir, hideDot, popup_menu, fileRename,
+						fselect, fmove, fcopy, fdelete, fnew, dnew};
 	bind.keys = keys; bind.func = binfunc; bind.nmemb=12;
 
 	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
-	WINDOW* wins[5] = {stdscr, upbar, lowbar, main, wfiles};
-	data.wins=wins; data.wins_size = 5;
+	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
+	data.wins=wins; data.wins_size = 6;
+
+	struct Wobj wobj;
+	wobj.data=&data;
+	wobj.bind=bind;
+	wobj.local=1;
+	wobj.win=wfiles;
+	wobj.pwd=pwd;
 
 	for (;;) {
 		wmove(main,0,0);wclrtoeol(main);
@@ -102,14 +100,15 @@ int main() {
 			args[i]=(void*)ls[i];
 		}
 		cb.func=func;cb.args=args;cb.nmemb=size;
+		wobj.cb=cb; wobj.ls= ls;
+		tl.wobj=wobj;
 
-		int res = menu(wfiles, ls, display_files, cb, &data, bind);
+		int res = menu(&tl, display_files);
 		if (res) {
 			wmove(wfiles,0,0);wclrtobot(wfiles);
 			wrefresh(stdscr);wrefresh(main);wrefresh(wfiles);
 		} else break;
 	}
-	/*while(1){if(getch()==10)break;}*/
 	endwin();
 }
 
@@ -122,7 +121,6 @@ int popup_menu(struct Data *data, char* file) {
 	box(win, ACS_VLINE, ACS_HLINE);
 	wrefresh(win);
 
-	//wgetch(win);
 	char *ls[4] = {"Start server", "Quick launcher", "Settings", "Close"};
 	struct Callback cb; struct Data _data; struct Binding bind;
 
@@ -134,8 +132,16 @@ int popup_menu(struct Data *data, char* file) {
 
 	struct Nopt nopt; nopt.underline=0; nopt.str_size=15;
 	_data.data = &nopt; _data.wins_size=0;
+
+
+	struct TabList tl;
+	tab_init(&tl);
+	struct Wobj wobj;
+	wobj.bind=bind; wobj.ls=ls; wobj.cb=cb; wobj.data=&_data;wobj.local=0;
+	wobj.pwd=NULL;wobj.win=mwin;
+	tl.wobj=wobj;
 	for (;;) {
-		int res = menu(mwin, ls, display_opts, cb, &_data, bind);
+		int res = menu(&tl, display_opts);
 		if (res) {
 			wmove(mwin,0,0);wclrtobot(mwin);
 			wrefresh(win);wrefresh(mwin);
