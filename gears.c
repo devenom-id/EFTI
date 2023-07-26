@@ -510,15 +510,15 @@ int fcopy(struct Data *data, char* file) {
 	s=realloc(s,size+1);s[size]=0;
 	(void) reverse(s);
 	char *path = malloc(strlen(pwd)+strlen(s)+1);
-	strcpy(path,pwd);strcat(path,s);
-	(void)copy(spath,path);
+	(void) strcpy(path,pwd); (void)strcat(path,s);
+	(void) copy(spath,path);
 	
-	free(fdata->tmp_path);
+	(void) free(fdata->tmp_path);
 	fdata->tmp_path = NULL;
 
-	mvwaddstr(data->wins[1],0, 2, " ");
-	wrefresh(data->wins[1]);
-	free(s); free(path);
+	(void) mvwaddstr(data->wins[1],0, 2, " ");
+	(void) wrefresh(data->wins[1]);
+	(void) free(s); (void)free(path);
 	return 1;
 }
 
@@ -595,6 +595,61 @@ int dnew(struct Data *data, char* file) {
 	_= mkdir(path, 0700); handleError(_,-1,"dnew: mkdir");
 	(void) free(path);
 	return 1;
+}
+
+void tab_init(struct TabList *tl) {tl->list=NULL;tl->point=0; tl->size=0;}
+
+void add_tab(WINDOW* tabwin, struct TabList *tl) {
+	if (tl->list != NULL) {
+		char str[4] = {' ', tl->list[tl->point]+48, ' ', 0};
+		wattron(tabwin, COLOR_PAIR(6));
+		mvwaddstr(tabwin, 0, tl->point*3, str);
+		wattroff(tabwin, COLOR_PAIR(6));
+		wrefresh(tabwin);
+	}
+	tl->list = realloc(tl->list, tl->size+1);
+	tl->list[tl->size] = tl->size+1;
+	char str[4] = {' ', tl->list[tl->size]+48, ' ', 0};
+	wattron(tabwin, COLOR_PAIR(7));
+	mvwaddstr(tabwin, 0, tl->size*3, str);
+	wattroff(tabwin, COLOR_PAIR(7));
+	wrefresh(tabwin);
+	tl->point = tl->size;
+	tl->size++;
+}
+
+void del_tab(WINDOW* tabwin, struct TabList *tl) {
+	tl->list = realloc(tl->list, tl->size-1);
+	tl->size--;
+	wmove(tabwin,0,0);wclrtoeol(tabwin);
+	for (int i=0; i<tl->size; i++) {
+		char str[4] = {' ', tl->list[i]+48, ' ', 0};
+		wattron(tabwin, COLOR_PAIR(6));
+		mvwaddstr(tabwin, 0, i*3, str);
+		wattroff(tabwin, COLOR_PAIR(6));
+	}
+	if (tl->size) {
+		char str[4] = {' ', tl->list[tl->point]+48, ' ', 0};
+		wattron(tabwin, COLOR_PAIR(7));
+		mvwaddstr(tabwin, 0, tl->point*3, str);
+		wattroff(tabwin, COLOR_PAIR(7));
+	}
+	wrefresh(tabwin);
+}
+
+void tab_switch(WINDOW* tabwin, struct TabList *tl) {
+	char str[4] = {' ', tl->list[tl->point]+48, ' ', 0};
+	wattron(tabwin, COLOR_PAIR(6));
+	mvwaddstr(tabwin, 0, tl->point*3, str);
+	wattroff(tabwin, COLOR_PAIR(6));
+	wrefresh(tabwin);
+	if (tl->point == tl->size-1) {tl->point = 0;}
+	else {tl->point++;}
+	str[1] = tl->list[tl->point]+48;
+	wattron(tabwin, COLOR_PAIR(7));
+	mvwaddstr(tabwin, 0, tl->point*3, str);
+	wattroff(tabwin, COLOR_PAIR(7));
+	wrefresh(tabwin);
 }
 /*
 󰙯  

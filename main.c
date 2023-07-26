@@ -22,27 +22,35 @@ int main() {
 	init_pair(3, 15, 237); /*grey bg, white fg*/
 	init_pair(4, 207, 237); /*grey bg, pink fg*/
 	init_pair(5, 16, 15); /*white bg, black fg*/
+
+	init_pair(6, 15, 237); /*dark grey bg, white fg*/
+	init_pair(7, 15, 240); /*light grey bg, white fg*/
 	wbkgd(stdscr, COLOR_PAIR(2));
 
 	int std_y, std_x; getmaxyx(stdscr, std_y, std_x);
 	WINDOW* upbar = newwin(1,std_x,0,0);
+	WINDOW* tabwin = newwin(1, std_x-4, std_y-2, 2);
 	WINDOW* lowbar = newwin(1, std_x, std_y-1, 0);
 
-	refresh();wrefresh(upbar);wrefresh(lowbar);
+	refresh();wrefresh(upbar);wrefresh(tabwin);wrefresh(lowbar);
 
 	wbkgd(upbar, COLOR_PAIR(1));
+	/*wbkgd(tabwin, COLOR_PAIR(6));*/
 	wbkgd(lowbar, COLOR_PAIR(1));
-	wrefresh(upbar); wrefresh(lowbar);
+	wrefresh(upbar); wrefresh(tabwin); wrefresh(lowbar);
 
 	mvwaddstr(upbar, 0, std_x/2-2, "EFTI");
 	char uptime_buff[21] = {0};
 	uptime(uptime_buff);
+	struct TabList tl;
+	tab_init(&tl);
+	add_tab(tabwin, &tl);
 	mvwaddstr(lowbar, 0, 2, "Uptime: ");
 	waddstr(lowbar, uptime_buff);
 	mvwaddstr(lowbar, 0, std_x-24, "Server status: ");
 	if (SERVER_STATUS) {waddstr(lowbar, "Online");}
 	else {waddstr(lowbar, "Offline");}
-	wrefresh(upbar); wrefresh(lowbar);
+	wrefresh(upbar); wrefresh(tabwin); wrefresh(lowbar);
 
 	WINDOW* main = newwin(std_y-4, std_x-4, 2, 2);
 	int main_y, main_x; getmaxyx(main, main_y, main_x);
@@ -76,7 +84,6 @@ int main() {
 
 	for (;;) {
 		wmove(main,0,0);wclrtoeol(main);
-		/*char *pwd = getcwd(NULL, 0);*/
 		wattron(main, COLOR_PAIR(4));
 		mvwaddstr(main, 0, 0, pwd);
 		wattroff(main, COLOR_PAIR(4));

@@ -1,5 +1,6 @@
 #ifndef GEARS_H
 #define GEARS_H
+#include <curses.h>
 #include <ncurses.h>
 struct Nopt {
 	int str_size;
@@ -26,6 +27,19 @@ struct Binding {
 	int (**func)(struct Data*, char*);
 	int nmemb;
 };
+struct Wobj {
+	WINDOW* win;
+	struct Data data;
+	struct Callback cb;
+	int local;
+	char* pwd;
+};
+struct TabList {
+	char *list;
+	int point;
+	int size;
+	struct Wobj win;
+};
 void uptime(char* buff);
 void dir_up(char *pwd);
 void dir_cd(char *pwd, char *dir);
@@ -48,4 +62,8 @@ int fcopy(struct Data *data, char* file);
 int fdelete(struct Data *data, char* file);
 int fnew(struct Data *data, char* file);
 int dnew(struct Data *data, char* file);
+void tab_init(struct TabList *tl);
+void add_tab(WINDOW* tabwin, struct TabList *tl);
+void del_tab(WINDOW* tabwin, struct TabList *tl);
+void tab_switch(WINDOW* tabwin, struct TabList *tl);
 #endif
