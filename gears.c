@@ -7,11 +7,14 @@
 #include <ncurses.h>
 #include <unistd.h>
 #include <errno.h>
+#include <termios.h>
+#include <pthread.h>
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include "gears.h"
 #include "libncread/ncread.h"
+#include "libncread/vector.h"
 
 int _;
 void handleError(int c, int n, const char* str) {
@@ -21,6 +24,16 @@ void handleError(int c, int n, const char* str) {
 	(void) perror(str);
 	exit(1);
 }
+
+void tcbreak(struct termios *old, struct termios *tty) {
+	tcgetattr(0, old);
+	tty = old;
+	tty->c_lflag &= ~(ECHO | ICANON);
+	tty->c_cc[VTIME] = 0; tty->c_cc[VMIN] = 1;
+	tcsetattr(0, TCSADRAIN, tty);
+}
+
+void tnocbreak(struct termios *old) {tcsetattr(0, TCSADRAIN, old);}
 
 void uptime(char* buff) {
 	struct sysinfo si;
@@ -77,7 +90,13 @@ void pr_ls(char **ls, int size) {
 	printf("%s}\n", ls[size-1]);
 }
 
-void display_opts(WINDOW* win, char **ls, int size, int start, int top, int* ptrs, void* data, int mode) {
+void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
+	struct Wobj wobj = get_current_tab(tl);
+	WINDOW *win = wobj.win;
+	char **ls = wobj.ls;
+	int size = wobj.cb.nmemb;
+	void* data = wobj.data->data;
+
 	struct Nopt* nopt = (struct Nopt*)data;
 	char *str = malloc(nopt->str_size); str[nopt->str_size-1]=0;
 	switch (mode) {
@@ -152,7 +171,14 @@ wchar_t *geticon(char* file) {
 	return ico;
 }
 
-void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptrs, void* data, int mode) {
+void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) {
+	struct Wobj wobj = get_current_tab(tl);
+	WINDOW *win = wobj.win;
+	char **ls = wobj.ls;
+	int size = wobj.cb.nmemb;
+	void* data = wobj.data->data;
+	int local = wobj.local;
+
 	char str[50]; str[49]=0;
 	char *pwd = ((struct Fopt*)data)->pwd;
 	char *path = NULL;
@@ -166,7 +192,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 				len = strlen(ls[i]);
 				char *path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[i]);
 				nsize = (len<49-2) ?  len: 49-2;
-				stat(path, &st);
+				if (local) stat(path, &st);
 				mvwaddwstr(win, p, 0, geticon(path));
 				mvwaddnstr(win, p, 2, ls[i], nsize);
 				if (S_ISDIR(st.st_mode)) mvwaddch(win, p, nsize+2, '/');
@@ -183,7 +209,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
+			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');}
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]-1]);
@@ -192,7 +218,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
 			mvwaddwstr(win, ptrs[0]-1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]-1, 2, str, nsize);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
+			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');}
 			free(path);
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
@@ -204,7 +230,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
+			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');}
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]+1]);
@@ -213,7 +239,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
 			mvwaddwstr(win, ptrs[0]+1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]+1, 2, str, nsize);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
+			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');}
 			free(path);
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
@@ -227,7 +253,7 @@ void display_files(WINDOW *win, char**ls, int size, int start, int top, int *ptr
 			wattron(win, A_UNDERLINE);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
-			stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');
+			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');}
 			free(path);
 			wattroff(win, A_UNDERLINE);
 			return;
@@ -241,9 +267,9 @@ int search_binding(int ch, struct Binding bind) {
 	return -1;
 }
 
-int menu(struct TabList *tl, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,int)) {
-	struct Wobj wobj = tl->wobj;
-	struct Callback cb = wobj.cb; struct Data *data = wobj.data;
+int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int)) {
+	struct Wobj wobj = get_current_tab(tl);
+	struct TCallback cb = wobj.cb; struct Data *data = wobj.data;
 	struct Binding bind = wobj.bind;
 	char **ls = wobj.ls; char *pwd = wobj.pwd; WINDOW* win = wobj.win;
 	int y; int x; getmaxyx(win, y, x);
@@ -252,8 +278,8 @@ int menu(struct TabList *tl, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,i
 	int ptrs[2] = {0};
 	int top = y;
 	int size = cb.nmemb;
-	dcb(win, ls, size, 0, y, ptrs, data->data, 0);
-	dcb(win, ls, size, 0, top, ptrs, data->data, 3);
+	dcb(tl, 0, y, ptrs,  0);
+	dcb(tl, 0, top, ptrs, 3);
 	for (;;) {
 		int ch = wgetch(win);
 		if (ch == KEY_UP) {
@@ -262,14 +288,14 @@ int menu(struct TabList *tl, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,i
 				wscrl(win, -1);
 				top--;sp--;
 				wmove(win,0,0);wclrtobot(win);
-				dcb(win, ls, size, top-y, top, ptrs, data->data, 0);
+				dcb(tl, top-y, top, ptrs, 0);
 
 				ptrs[0]=p+1;ptrs[1]=sp+1;
-				dcb(win,ls,size,top-y,top,ptrs,data->data,1);
+				dcb(tl,top-y,top,ptrs,1);
 
 			} else {
 				ptrs[0]=p;ptrs[1]=sp;
-				dcb(win,ls,size,top-y,top,ptrs,data->data,1);
+				dcb(tl,top-y,top,ptrs,1);
 				sp--;p--;
 			}
 		}
@@ -279,13 +305,13 @@ int menu(struct TabList *tl, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,i
 				wscrl(win, 1);
 				top++;sp++;
 				wmove(win,0,0);wclrtobot(win);
-				dcb(win, ls, size, top-y, top, ptrs, data->data, 0);
+				dcb(tl, top-y, top, ptrs,  0);
 				
 				ptrs[0]=p-1;ptrs[1]=sp-1;
-				dcb(win,ls,size,top-y,top,ptrs,data->data,2);
+				dcb(tl,top-y,top,ptrs,2);
 			} else {
 				ptrs[0]=p;ptrs[1]=sp;
-				dcb(win,ls,size,top-y,top,ptrs,data->data,2);
+				dcb(tl,top-y,top,ptrs,2);
 				sp++;p++;
 			}
 		}
@@ -293,19 +319,20 @@ int menu(struct TabList *tl, void (*dcb)(WINDOW*,char**,int,int,int,int*,void*,i
 		else if (ch == 10) {
 			if(!size)continue;
 			data->ptrs[0] = p; data->ptrs[1] = sp;
-			int res = cb.func[sp](data, cb.args[sp]);
+			if (cb.func[sp] == NULL) return 1;
+			int res = cb.func[sp](tl, data, cb.args[sp]);
 			return res;
 		} else {
 			int index = search_binding(ch, bind);
 			if (index != -1) {
 				char* param = size ? ls[sp] : NULL;
-				return bind.func[index](data, param);
+				return bind.func[index](tl, data, param);
 			}
 		}
 	}
 }
 
-int handleFile(struct Data *data, void* f) {
+int handleFile(struct TabList *tl, struct Data *data, void* f) {
 	char* name = (char*)f;
 	char* pwd = ((struct Fopt*)data->data)->pwd;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
@@ -330,7 +357,7 @@ int handleFile(struct Data *data, void* f) {
 	return 1;
 }
 
-int execute(struct Data *data, char* file) {
+int execute(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
 	char *pwd = ((struct Fopt*)data->data)->pwd;
 	char*path = malloc(strlen(pwd)+strlen(file)+1);
@@ -345,6 +372,102 @@ int execute(struct Data *data, char* file) {
 			exit(1);
 		}
 		wait(NULL);
+		struct termios tty, old; tcbreak(&tty, &old);
+		printf("\n\033[2K[Presiona una tecla para continuar]\n");
+		getchar();
+		tnocbreak(&old);
+		refresh();
+	}
+	free(path);
+	return 1;
+}
+
+int execwargs_argsInput(WINDOW* win, struct Data* data, void* n) {
+	char** buff = (char**)n;
+	ampsread(win, buff, 3, 7, 20, 100, 0);
+	return 1;
+}
+int execwargs_ok(WINDOW* win, struct Data* data, void* n) {
+	int* x = (int*)n;
+	*x = !(*x);
+	return 1;
+}
+
+int execwargs(struct TabList *tl, struct Data *data, char* file) {
+	if (!file) return 1;
+	char *pwd = ((struct Fopt*)data->data)->pwd;
+	char *path = malloc(strlen(pwd)+strlen(file)+1);
+	strcpy(path,pwd);strcat(path,file);
+
+	WINDOW* stdscr = data->wins[0];
+	int y,x; getmaxyx(stdscr, y, x);
+	WINDOW* win = newwin(6, 30, y/2-2, x/2-15);
+	wbkgd(win, COLOR_PAIR(1));
+	keypad(win, 1);
+	wrefresh(win);
+	getmaxyx(win, y, x);
+
+	mvwaddstr(win, 0, x/2-8, "Execute with args");
+	mvwaddstr(win, 3, 1, "Args: ");
+	wrefresh(win);
+	struct Mobj a = NewCheck(2,1,0,"As root");
+	struct Mobj b = NewField(3,7,20);
+	struct Mobj c = NewText(4,x/2-2,"[OK]");
+	struct Mobj mobj[3] = {a,b,c};
+	int emph_color[2] = {2,4};
+
+	char *buff = NULL;
+	int ok = 0;
+	int sudo = 0;
+	void *args[3] = {&sudo, &buff, &ok};
+	int (*func[3])(WINDOW*, struct Data*, void*) = {execwargs_ok, execwargs_argsInput, execwargs_ok};
+	struct Callback cb; cb.args=args; cb.func=func; cb.nmemb=3;
+
+	for (;;) {
+		if (navigate(win, emph_color, mobj, cb)) {
+			if (ok) break;
+		} else {
+			delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
+			return 1;
+		}
+	}
+
+	/*execution process begins*/
+	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
+
+	struct stat st;
+	stat(path, &st);
+	if (!S_ISDIR(st.st_mode) && st.st_mode & S_IXUSR) {  /*If it's not dir and is executable*/
+		/*prepare argument vector*/
+		struct vector str;
+		if (buff!=NULL && strlen(buff)) str = string_split(buff, ' ');
+		else {vector_init(&str);};
+		str.str=realloc(str.str,sizeof(struct vector)*(str.size+1));
+		str.str[str.size]=NULL;str.size++;
+		char **tmpstr = malloc(sizeof(char**)*(str.size+1));
+		tmpstr[0] = path;
+		for (int i=1; i<str.size+1; i++) {
+			tmpstr[i] = str.str[i-1];
+		}
+		free(str.str);
+		str.str = tmpstr;
+		str.size++;
+
+		/*execution*/
+		endwin();
+		int PID = fork();
+		if (!PID) {
+			chdir(pwd);
+			execv(path, str.str);
+			exit(1);
+		}
+		wait(NULL);
+
+		/*end execution*/
+		struct termios tty, old; tcbreak(&tty, &old);
+		printf("\n\033[2K[Presiona una tecla para continuar]\n");
+		getchar();
+		tnocbreak(&old);
 		refresh();
 	}
 	free(path);
@@ -367,7 +490,7 @@ int isImg(char* file) {
 	return 0;
 }
 
-int view(struct Data *data, char *file) {
+int view(struct TabList *tl, struct Data *data, char *file) {
 	char *pwd=((struct Fopt*)data->data)->pwd;
 	if (!file) return 1;
 	struct stat st;
@@ -384,17 +507,17 @@ int view(struct Data *data, char *file) {
 	return 1;
 }
 
-int updir(struct Data *data, char* file) {dir_up(((struct Fopt*)data->data)->pwd);return 1;}
+int updir(struct TabList *tl, struct Data *data, char* file) {dir_up(((struct Fopt*)data->data)->pwd);return 1;}
 
-int hideDot(struct Data *data, char* file) {
+int hideDot(struct TabList *tl, struct Data *data, char* file) {
 	struct Fopt* fdata = (struct Fopt*)data->data;
 	fdata->dotfiles = fdata->dotfiles ? 0: 1;
 	return 1;
 }
 
-int menu_close(struct Data *data, void* args) {return 0;}
+int menu_close(struct TabList *tl, struct Data *data, void* args) {return 0;}
 
-int fileRename(struct Data *data, char* file) {
+int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
 	char *pwd = ((struct Fopt*)data->data)->pwd;
 	WINDOW* stdscr = data->wins[0];
@@ -409,8 +532,8 @@ int fileRename(struct Data *data, char* file) {
 	wrefresh(win);
 	char *buff;
 	ampsread(win, &buff, 1, 7, 20, 20, 0);
-	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
-	if (buff==NULL) return 1;
+	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
+	if (buff==NULL) {free(buff);return 1;}
 	char *A = malloc(strlen(pwd)+strlen(file)+1);
 	char *B = malloc(strlen(pwd)+strlen(buff)+1);
 	strcpy(A, pwd); strcat(A, file);
@@ -420,7 +543,7 @@ int fileRename(struct Data *data, char* file) {
 	return 1;
 }
 
-int fselect(struct Data *data, char* file) {
+int fselect(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
 	struct Fopt *fdata = (struct Fopt*)data->data;
 	char *pwd = fdata->pwd;
@@ -438,7 +561,7 @@ int fselect(struct Data *data, char* file) {
 	return 1;
 }
 
-int fmove(struct Data *data, char* file) {
+int fmove(struct TabList *tl, struct Data *data, char* file) {
 	struct Fopt *fdata = (struct Fopt*)data->data;
 	if (fdata->tmp_path==NULL) return 1;
 	char* pwd = fdata->pwd;
@@ -480,7 +603,7 @@ int fmove(struct Data *data, char* file) {
 		mvwaddstr(data->wins[1],0, 2, " ");
 		wrefresh(data->wins[1]);
 	}
-	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	return 1;
 }
 
@@ -499,7 +622,7 @@ void copy(char *A, char *B) {
 	free(buff);
 }
 
-int fcopy(struct Data *data, char* file) {
+int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	struct Fopt*fdata = (struct Fopt*)data->data;
 	if (fdata->tmp_path==NULL) return 1;
 	char *pwd = fdata->pwd;
@@ -526,7 +649,7 @@ int fcopy(struct Data *data, char* file) {
 	return 1;
 }
 
-int fdelete(struct Data *data, char* file) {
+int fdelete(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
 
 	WINDOW* stdscr = data->wins[0];
@@ -547,11 +670,11 @@ int fdelete(struct Data *data, char* file) {
 		_= remove(path); handleError(_, -1, "fdelete: remove");
 		(void) free(path);
 	}
-	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	return 1;
 }
 
-int fnew(struct Data *data, char* file) {
+int fnew(struct TabList *tl, struct Data *data, char* file) {
 	char *pwd = ((struct Fopt*)data->data)->pwd;
 	WINDOW* stdscr = data->wins[0];
 	int y,x; getmaxyx(stdscr, y, x);
@@ -565,7 +688,7 @@ int fnew(struct Data *data, char* file) {
 	wrefresh(win);
 	char *buff;
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
-	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);
 	(void) strcpy(path,pwd); (void)strcat(path, buff);
@@ -576,7 +699,7 @@ int fnew(struct Data *data, char* file) {
 	return 1;
 }
 
-int dnew(struct Data *data, char* file) {
+int dnew(struct TabList *tl, struct Data *data, char* file) {
 	char *pwd = ((struct Fopt*)data->data)->pwd;
 	WINDOW* stdscr = data->wins[0];
 	int y,x; (void) getmaxyx(stdscr, y, x);
@@ -590,7 +713,7 @@ int dnew(struct Data *data, char* file) {
 	wrefresh(win);
 	char *buff;
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
-	delwin(win); touchwin(data->wins[3]); wrefresh(data->wins[3]);
+	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);
 	(void) strcpy(path, pwd); (void)strcat(path, buff);
@@ -655,6 +778,145 @@ void tab_switch(WINDOW* tabwin, struct TabList *tl) {
 	wattroff(tabwin, COLOR_PAIR(7));
 	wrefresh(tabwin);
 }
+
+struct Wobj get_current_tab(struct TabList *tl) {return tl->wobj[tl->point];}
+
+struct Mobj NewText(int y, int x, const char* text) {
+	struct ObjText a;
+	a.text = text;
+	a.yx[0]=y; a.yx[1]=x;
+	struct Mobj m; m.id=0; m.object.text=a;
+	return m;
+}
+struct Mobj NewField(int y, int x, int size) {
+	struct ObjField a;
+	a.size = size;
+	a.yx[0]=y; a.yx[1]=x;
+	struct Mobj m; m.id=1; m.object.field=a;
+	return m;
+}
+struct Mobj NewCheck(int y, int x, int checked, const char* text) {
+	struct ObjCheck a;
+	a.checked=checked;
+	a.text=text;
+	a.yx[0]=y; a.yx[1]=x;
+	struct Mobj m; m.id=2; m.object.checkbox=a;
+	return m;
+}
+struct Mobj NewRect(int y1, int x1, int y2, int x2) {
+	struct ObjRect a;
+	a.coords[0]=y1; a.coords[1]=x1;
+	a.coords[2]=y2; a.coords[3]=x2;
+	struct Mobj m; m.id=3; m.object.rectangle=a;
+	return m;
+}
+
+void print_mobj(WINDOW* win, int color, struct Mobj mobj) {
+	switch (mobj.id) {
+		case 0: /*text*/ {
+			int * yx = mobj.object.text.yx;
+			wattron(win, COLOR_PAIR(color));
+			mvwaddstr(win, yx[0], yx[1], mobj.object.text.text);
+			wattroff(win, COLOR_PAIR(color));
+			break;
+		}
+		case 1: /*field*/ {
+			int *yx = mobj.object.field.yx;
+			for (int i=0; i<mobj.object.field.size; i++) {
+				mvwaddch(win, yx[0], yx[1]+i, (mvwinch(win, yx[0], yx[1]+i)&A_CHARTEXT)|COLOR_PAIR(color));
+				wrefresh(win);
+			}
+			break;
+		}
+		case 2: /*checkbox*/ {
+			int *yx = mobj.object.checkbox.yx;
+			char str[5] = {'(', ' ', ')', ' ', 0};
+			if (mobj.object.checkbox.checked) str[1] = 'x';
+			mvwaddstr(win, yx[0], yx[1], str);
+			wattron(win, COLOR_PAIR(color));
+			waddstr(win, mobj.object.checkbox.text);
+			wattroff(win, COLOR_PAIR(color));
+			break;
+		}
+		case 3: /*rectangle*/ {
+			wattron(win, COLOR_PAIR(color));
+			int *coords = mobj.object.rectangle.coords;
+			mvwaddch(win, coords[0], coords[1], ACS_ULCORNER);
+			for (int i=coords[1]+1; i<coords[3]; i++) {mvwaddch(win,coords[0],i,ACS_HLINE);}
+			waddch(win, ACS_URCORNER);
+			for (int i=coords[0]+1; i<coords[2]; i++) {
+				mvwaddch(win, i, coords[1], ACS_VLINE);
+				mvwaddch(win, i, coords[3], ACS_VLINE);
+			}
+			mvwaddch(win, coords[2], coords[1], ACS_LLCORNER);
+			for (int i=coords[1]+1; i<coords[3]; i++) {mvwaddch(win, coords[2], i, ACS_HLINE);}
+			waddch(win, ACS_LRCORNER);
+			wattroff(win, COLOR_PAIR(color));
+			break;
+		}
+	}
+	wrefresh(win);
+}
+
+int navigate(WINDOW* win, int emph_color[2], struct Mobj *mobj, struct Callback cb) {
+	int size = cb.nmemb;
+	for (int i=0; i<size; i++) { print_mobj(win, 0, mobj[i]); }
+	int attr = (mobj[0].id==3) ? emph_color[0] : emph_color[1];
+	print_mobj(win, attr, mobj[0]);
+	int p = 0;
+	for (;;) {
+		int ch = wgetch(win);
+		switch (ch) {
+			case 27:
+				return 0;
+			case 10:
+				if (mobj[p].id == 2) {
+					mobj[p].object.checkbox.checked = !mobj[p].object.checkbox.checked;
+					print_mobj(win, emph_color[1], mobj[p]);
+				}
+				if (cb.func[p] == NULL) return 1;
+				return cb.func[p](win, NULL, cb.args[p]);
+				break;
+			case KEY_UP: {
+				if (!p) continue;
+				print_mobj(win, 0, mobj[p]);
+				int attr = (mobj[p-1].id==3) ? emph_color[0] : emph_color[1];
+				print_mobj(win, attr, mobj[p-1]);
+				p--;
+				break;
+			}
+			case KEY_DOWN: {
+				if (p == size-1) continue;
+				print_mobj(win, 0, mobj[p]);
+				int attr = (mobj[p+1].id==3) ? emph_color[0] : emph_color[1];
+				print_mobj(win, attr, mobj[p+1]);
+				p++;
+				break;
+			}
+		}
+	}
+	return 1;
+}
+
+void server_connect();
+/* connect debe crear una conexión a un servidor remoto.
+ * Debe crear un objeto wobj con todos los métodos para poder interactuar
+ * con el server. En otras palabras, crear una nueva tab en la tablist.
+ * Recordatorio: Cada tab en la tablist es una wobj.*/
+void server_create();
+/* create debe crear un proceso nuevo usando fork().
+ * Cuando el proceso padre muera, el server seguirá online.
+ * create debe crear o sobreescribir un archivo con el PID del nuevo
+ * proceso para poder detenerlo a voluntad.*/
+void server_kill();
+/* Lee el archivo que contiene el pid del server, envía SIGTERM al server
+ * y elimina el archivo.*/
+void server_disconnect();
+/* Cierra la conexión al servidor remoto.
+ * Destruye el wobj asociado a esa conexión. (del_tab)*/
+int server_send(struct TabList *tl, struct Data* data, void* n) {return 1;}
+int server_retrieve(struct TabList *tl, struct Data* data, void* n) {return 1;}
+
 /*
 󰙯  
 */

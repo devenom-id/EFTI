@@ -9,7 +9,7 @@
 #include "gears.h"
 
 int SERVER_STATUS = 0;
-int popup_menu(struct Data *data, char* file);
+int popup_menu(struct TabList *tl, struct Data *data, char* file);
 
 int main() {
 	setlocale(LC_ALL, "");
@@ -17,14 +17,14 @@ int main() {
 	curs_set(0);
 	noecho();
 	start_color();
-	init_pair(1, 15, 160); /*red bg, white fg*/
-	init_pair(2, 15, 16); /*black bg, white fg*/
-	init_pair(3, 15, 237); /*grey bg, white fg*/
-	init_pair(4, 207, 237); /*grey bg, pink fg*/
-	init_pair(5, 16, 15); /*white bg, black fg*/
+	init_pair(1, 15, 160); /*fondo rojo con letras blancas*/
+	init_pair(2, 15, 16); /*fondo negro con letras blancas*/
+	init_pair(3, 15, 237); /*fondo gris con letras blancas*/
+	init_pair(4, 207, 237); /*fondo gris con letras rosas*/
+	init_pair(5, 16, 15); /*fondo blanco con letras negras*/
 
-	init_pair(6, 15, 237); /*dark grey bg, white fg*/
-	init_pair(7, 15, 240); /*light grey bg, white fg*/
+	init_pair(6, 15, 237); /*fondo gris oscuro con letras blancas*/
+	init_pair(7, 15, 240); /*fondo gris claro con letras blancas*/
 	wbkgd(stdscr, COLOR_PAIR(2));
 
 	int std_y, std_x; getmaxyx(stdscr, std_y, std_x);
@@ -64,21 +64,21 @@ int main() {
 	strcat(pwd, "/");
 
 	struct Binding bind;
-	int keys[12] = {'x','v','u','h','M','r','s','m','c','D','n','N'};
-	int (*binfunc[12])(struct Data*, char*) = {execute, view, updir, hideDot, popup_menu, fileRename,
-						fselect, fmove, fcopy, fdelete, fnew, dnew};
-	bind.keys = keys; bind.func = binfunc; bind.nmemb=12;
+	int keys[13] = {'x','v','u','h','M','r','s','m','c','D','n','N', 'X'};
+	int (*binfunc[13])(struct TabList*, struct Data*, char *) = {execute, view, updir, hideDot, popup_menu, fileRename,
+						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs};
+	bind.keys = keys; bind.func = binfunc; bind.nmemb=13;
 
 	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 6;
 
-	struct Wobj wobj;
-	wobj.data=&data;
-	wobj.bind=bind;
-	wobj.local=1;
-	wobj.win=wfiles;
-	wobj.pwd=pwd;
+	struct Wobj *wobj = malloc(sizeof(struct Wobj));
+	wobj[0].data=&data;
+	wobj[0].bind=bind;
+	wobj[0].local=1;
+	wobj[0].win=wfiles;
+	wobj[0].pwd=pwd;
 
 	for (;;) {
 		wmove(main,0,0);wclrtoeol(main);
@@ -87,20 +87,20 @@ int main() {
 		wattroff(main, COLOR_PAIR(4));
 		wrefresh(main);
 
-		struct Callback cb;
+		struct TCallback cb;
 		fdata.pwd=pwd;
 
 		char** ls = NULL;
 		int size = list(pwd, &ls, fdata.dotfiles);
 		alph_sort(ls, size);
 
-		int (*func[size])(struct Data*,void*);void* args[size];
+		int (*func[size])(struct TabList*, struct Data*,void*);void* args[size];
 		for (int i=0;i<size;i++){
 			func[i]=handleFile;
 			args[i]=(void*)ls[i];
 		}
 		cb.func=func;cb.args=args;cb.nmemb=size;
-		wobj.cb=cb; wobj.ls= ls;
+		wobj[0].cb=cb; wobj[0].ls= ls;
 		tl.wobj=wobj;
 
 		int res = menu(&tl, display_files);
@@ -112,7 +112,7 @@ int main() {
 	endwin();
 }
 
-int popup_menu(struct Data *data, char* file) {
+int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	WINDOW* win = newwin(7, 16, 1, 0);
 	WINDOW* mwin = newwin(5, 14, 2, 1);
 	keypad(mwin,1);
@@ -122,9 +122,9 @@ int popup_menu(struct Data *data, char* file) {
 	wrefresh(win);
 
 	char *ls[4] = {"Start server", "Quick launcher", "Settings", "Close"};
-	struct Callback cb; struct Data _data; struct Binding bind;
+	struct TCallback cb; struct Data _data; struct Binding bind;
 
-	int (*func[4])(struct Data*, void*) = {NULL, NULL, NULL, menu_close};
+	int (*func[4])(struct TabList*, struct Data*, void*) = {NULL, NULL, NULL, menu_close};
 	void *args[4] = {NULL, NULL, NULL, NULL};
 	cb.func=func;cb.args=args;cb.nmemb=4;
 
@@ -136,9 +136,9 @@ int popup_menu(struct Data *data, char* file) {
 
 	struct TabList tl;
 	tab_init(&tl);
-	struct Wobj wobj;
-	wobj.bind=bind; wobj.ls=ls; wobj.cb=cb; wobj.data=&_data;wobj.local=0;
-	wobj.pwd=NULL;wobj.win=mwin;
+	struct Wobj *wobj = malloc(sizeof(struct Wobj));
+	wobj[0].bind=bind; wobj[0].ls=ls; wobj[0].cb=cb; wobj[0].data=&_data;wobj[0].local=0;
+	wobj[0].pwd=NULL;wobj[0].win=mwin;
 	tl.wobj=wobj;
 	for (;;) {
 		int res = menu(&tl, display_opts);
