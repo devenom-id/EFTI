@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
-LIBS=-lncursesw
+LIBS=-lncursesw -lpthread
 
 
 efti: main.c gears.c
