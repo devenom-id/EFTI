@@ -96,6 +96,7 @@ int string_addch(struct string* st, char ch) {
 	st->size++;
 	st->str = realloc(st->str, st->size+1);
 	st->str[st->size-1] = ch;
+	st->str[st->size] = 0;
 	return 0;
 }
 

@@ -724,7 +724,7 @@ int dnew(struct TabList *tl, struct Data *data, char* file) {
 	return 1;
 }
 
-void tab_init(struct TabList *tl) {tl->list=NULL;tl->point=0; tl->size=0;}
+void tab_init(struct TabList *tl) {tl->list=NULL;tl->point=0; tl->size=0;tl->wobj=NULL;}
 
 void add_tab(WINDOW* tabwin, struct TabList *tl) {
 	if (tl->list != NULL) {
@@ -734,6 +734,7 @@ void add_tab(WINDOW* tabwin, struct TabList *tl) {
 		wattroff(tabwin, COLOR_PAIR(6));
 		wrefresh(tabwin);
 	}
+	tl->wobj = realloc(tl->wobj, tl->size+1);
 	tl->list = realloc(tl->list, tl->size+1);
 	tl->list[tl->size] = tl->size+1;
 	char str[4] = {' ', tl->list[tl->size]+48, ' ', 0};

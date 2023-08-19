@@ -39,6 +39,7 @@ struct Wobj {
 	struct TCallback cb;
 	struct Binding bind;
 	int local;
+	int fd;
 	char* pwd;
 	char** ls;
 };

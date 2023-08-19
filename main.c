@@ -6,13 +6,18 @@
 #include <ncurses.h>
 #include <dirent.h>
 #include <locale.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <signal.h>
 #include "gears.h"
+#include "efti_srv.h"
 
 int SERVER_STATUS = 0;
 int popup_menu(struct TabList *tl, struct Data *data, char* file);
 
 int main() {
 	setlocale(LC_ALL, "");
+	signal(SIGTERM, SIG_IGN);
 	WINDOW* stdscr = initscr();
 	curs_set(0);
 	noecho();
@@ -25,6 +30,7 @@ int main() {
 
 	init_pair(6, 15, 237); /*fondo gris oscuro con letras blancas*/
 	init_pair(7, 15, 240); /*fondo gris claro con letras blancas*/
+	init_pair(8, 40, 160); /*fondo rojo con letras verdes*/
 	wbkgd(stdscr, COLOR_PAIR(2));
 
 	int std_y, std_x; getmaxyx(stdscr, std_y, std_x);
@@ -64,10 +70,10 @@ int main() {
 	strcat(pwd, "/");
 
 	struct Binding bind;
-	int keys[13] = {'x','v','u','h','M','r','s','m','c','D','n','N', 'X'};
-	int (*binfunc[13])(struct TabList*, struct Data*, char *) = {execute, view, updir, hideDot, popup_menu, fileRename,
-						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs};
-	bind.keys = keys; bind.func = binfunc; bind.nmemb=13;
+	int keys[14] = {'x','v','u','h','M','r','s','m','c','D','n','N', 'X', 'C'};
+	int (*binfunc[14])(struct TabList*, struct Data*, char *) = {execute, view, updir, hideDot, popup_menu, fileRename,
+						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs, client_connect};
+	bind.keys = keys; bind.func = binfunc; bind.nmemb=14;
 
 	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
@@ -112,6 +118,30 @@ int main() {
 	endwin();
 }
 
+int launch_create(struct TabList *tl, struct Data *data, void* d) {
+	struct TabList *otl = (struct TabList*)d;
+	WINDOW* stdscr = otl->wobj[0].data->wins[0];
+	WINDOW* lowbar = otl->wobj[0].data->wins[3];
+	server_create();
+	int y,x; getmaxyx(stdscr, y, x);
+	wmove(lowbar, 0, x-9); wclrtoeol(lowbar);
+	mvwaddstr(lowbar, 0, x-9, "Online");
+	wrefresh(lowbar);
+	return 1;
+}
+
+int launch_stop(struct TabList *tl, struct Data *data, void* d) {
+	struct TabList *otl = (struct TabList*)d;
+	WINDOW* stdscr = otl->wobj[0].data->wins[0];
+	WINDOW* lowbar = otl->wobj[0].data->wins[3];
+	server_kill();
+	int y,x; getmaxyx(stdscr, y, x);
+	wmove(lowbar, 0, x-9); wclrtoeol(lowbar);
+	mvwaddstr(lowbar, 0, x-9, "Offline");
+	wrefresh(lowbar);
+	return 1;
+}
+
 int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	WINDOW* win = newwin(7, 16, 1, 0);
 	WINDOW* mwin = newwin(5, 14, 2, 1);
@@ -120,12 +150,16 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	wbkgd(mwin, COLOR_PAIR(1));
 	box(win, ACS_VLINE, ACS_HLINE);
 	wrefresh(win);
+	char* fname;
+	int (*fn)(struct TabList*,struct Data*, void*);
+	if (open("/tmp/efti/pid", O_RDONLY) == -1) {fname="Start server"; fn=launch_create;}
+	else {fname="Stop server";fn=launch_stop;}
 
-	char *ls[4] = {"Start server", "Quick launcher", "Settings", "Close"};
+	char* ls[4] = {fname, "Quick launcher", "Settings", "Close"};
 	struct TCallback cb; struct Data _data; struct Binding bind;
 
-	int (*func[4])(struct TabList*, struct Data*, void*) = {NULL, NULL, NULL, menu_close};
-	void *args[4] = {NULL, NULL, NULL, NULL};
+	int (*func[4])(struct TabList*, struct Data*, void*) = {fn, NULL, NULL, menu_close};
+	void *args[4] = {otl, NULL, NULL, NULL};
 	cb.func=func;cb.args=args;cb.nmemb=4;
 
 	bind.nmemb=0;
