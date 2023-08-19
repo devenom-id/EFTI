@@ -162,7 +162,7 @@ void *server_handle(void* conn) { /*server's core*/
 		poll(rfd, 1, -1);
 		struct Srvdata sd = get_data(fd);
 		switch (sd.order) {
-			case 1: { /*ping (Can be used to disconnect by inactivity)*/
+			case 1: { /*ping (Can be used to disconnect for inactivity)*/
 				char tmpbf[1] = {1};
 				write(fd, tmpbf, 1);
 				break;
@@ -221,7 +221,7 @@ void server_kill() { /*kill server if exists*/
 		if (buff[0] == 10) break;
 		pid*=10;pid+=buff[0]-48;
 	}
-	kill(pid, SIGTERM);
+	kill(pid, SIGKILL);
 	unlink("/tmp/efti/pid");
 }
 
@@ -242,16 +242,16 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	WINDOW* stdscr = tl->wobj[0].data->wins[0];
 	int y, x; getmaxyx(stdscr, y, x);
 	int m = y-2;
-	WINDOW* win = newwin(4, 36, y/2-2, x/2-10);
+	WINDOW* win = newwin(4, 37, y/2-2, x/2-18);
 	getmaxyx(win, y, x);
 	wbkgd(win, COLOR_PAIR(1));
 	keypad(win, 1);
 	mvwaddstr(win, 0, x/2-8, "Connect to remote");
-	mvwaddstr(win, 2, 1, "Address:port");
+	mvwaddstr(win, 2, 1, "Address:port:");
 	wrefresh(win);
 	char *buff;
-	ampsread(win, &buff, 2, 15, 20, 20, 0);
-	delwin(win); touchwin(wr); wrefresh(wr);
+	ampsread(win, &buff, 2, 15, 21, 21, 0);
+	delwin(win); touchwin(wfiles); wrefresh(wfiles);
 	if (!buff) {
 		dialog(stdscr, wr, "You have to write the port and the address");
 		return 1;

@@ -78,6 +78,7 @@ int main() {
 	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 6;
+	fdata.pwd=pwd;
 
 	struct Wobj *wobj = malloc(sizeof(struct Wobj));
 	wobj[0].data=&data;
@@ -85,19 +86,20 @@ int main() {
 	wobj[0].local=1;
 	wobj[0].win=wfiles;
 	wobj[0].pwd=pwd;
+	tl.wobj=wobj;
 
 	for (;;) {
+		struct Wobj wobj = get_current_tab(&tl);
 		wmove(main,0,0);wclrtoeol(main);
 		wattron(main, COLOR_PAIR(4));
-		mvwaddstr(main, 0, 0, pwd);
+		mvwaddstr(main, 0, 0, wobj.pwd);
 		wattroff(main, COLOR_PAIR(4));
 		wrefresh(main);
 
 		struct TCallback cb;
-		fdata.pwd=pwd;
 
 		char** ls = NULL;
-		int size = list(pwd, &ls, fdata.dotfiles);
+		int size = list(wobj.pwd, &ls, fdata.dotfiles);
 		alph_sort(ls, size);
 
 		int (*func[size])(struct TabList*, struct Data*,void*);void* args[size];
@@ -106,8 +108,7 @@ int main() {
 			args[i]=(void*)ls[i];
 		}
 		cb.func=func;cb.args=args;cb.nmemb=size;
-		wobj[0].cb=cb; wobj[0].ls= ls;
-		tl.wobj=wobj;
+		wobj.cb=cb; wobj.ls= ls;
 
 		int res = menu(&tl, display_files);
 		if (res) {

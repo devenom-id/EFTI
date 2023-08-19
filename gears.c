@@ -180,7 +180,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 	int local = wobj.local;
 
 	char str[50]; str[49]=0;
-	char *pwd = ((struct Fopt*)data)->pwd;
+	char *pwd = wobj.pwd;
 	char *path = NULL;
 	int len, nsize;
 	struct stat st;
@@ -333,8 +333,9 @@ int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int)) {
 }
 
 int handleFile(struct TabList *tl, struct Data *data, void* f) {
+	struct Wobj wobj = get_current_tab(tl);
 	char* name = (char*)f;
-	char* pwd = ((struct Fopt*)data->data)->pwd;
+	char* pwd = wobj.pwd;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
 	struct stat st;
 	stat(path, &st);
@@ -359,7 +360,8 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 
 int execute(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
-	char *pwd = ((struct Fopt*)data->data)->pwd;
+	struct Wobj wobj = get_current_tab(tl);
+	char *pwd = wobj.pwd;
 	char*path = malloc(strlen(pwd)+strlen(file)+1);
 	strcpy(path,pwd);strcat(path,file);
 	struct stat st;
@@ -395,7 +397,8 @@ int execwargs_ok(WINDOW* win, struct Data* data, void* n) {
 
 int execwargs(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
-	char *pwd = ((struct Fopt*)data->data)->pwd;
+	struct Wobj wobj = get_current_tab(tl);
+	char *pwd = wobj.pwd;
 	char *path = malloc(strlen(pwd)+strlen(file)+1);
 	strcpy(path,pwd);strcat(path,file);
 
@@ -491,7 +494,8 @@ int isImg(char* file) {
 }
 
 int view(struct TabList *tl, struct Data *data, char *file) {
-	char *pwd=((struct Fopt*)data->data)->pwd;
+	struct Wobj wobj = get_current_tab(tl);
+	char *pwd=wobj.pwd;
 	if (!file) return 1;
 	struct stat st;
 	stat(file, &st);
@@ -507,7 +511,7 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 	return 1;
 }
 
-int updir(struct TabList *tl, struct Data *data, char* file) {dir_up(((struct Fopt*)data->data)->pwd);return 1;}
+int updir(struct TabList *tl, struct Data *data, char* file) {struct Wobj wobj = get_current_tab(tl);dir_up(wobj.pwd);return 1;}
 
 int hideDot(struct TabList *tl, struct Data *data, char* file) {
 	struct Fopt* fdata = (struct Fopt*)data->data;
@@ -519,7 +523,8 @@ int menu_close(struct TabList *tl, struct Data *data, void* args) {return 0;}
 
 int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
-	char *pwd = ((struct Fopt*)data->data)->pwd;
+	struct Wobj wobj = get_current_tab(tl);
+	char *pwd = wobj.pwd;
 	WINDOW* stdscr = data->wins[0];
 	int y,x; getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
