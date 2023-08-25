@@ -17,23 +17,6 @@
 #include "libncread/vector.h"
 #include "libncread/ncread.h"
 
-void dialog(WINDOW* stdscr, WINDOW *wr, const char* s) {
-	int y,x; getmaxyx(stdscr,y,x);
-	int size=strlen(s)+2;
-	if (size >= x-25) size=x-25;
-	WINDOW *win = newwin(4, size, y/2-2, x/2-size/2);
-	wbkgd(win, COLOR_PAIR(1));
-	mvwaddstr(win,1,1,s);
-	wattron(win, COLOR_PAIR(5));
-	mvwaddstr(win,2,x/2-2,"[OK]");
-	wattroff(win, COLOR_PAIR(5));
-	for (;;) {
-		int ch=wgetch(win);
-		if (ch == 27 || ch == 10) break;
-	}
-	delwin(win); touchwin(wr); wrefresh(wr);
-}
-
 int get_addr(char **s, char *a) {
 	int p=0; int px=0;
 	for (int i=0; i<strlen(a); i++) {
@@ -45,24 +28,6 @@ int get_addr(char **s, char *a) {
 		p++;
 	}
 	return 1;
-}
-
-char *itodg(int dig) {
-	char *darr = calloc(5, 1);
-	strcpy(darr, "0000");
-	int i=3;
-	while (dig) {
-		darr[i]=(dig%10)+48;
-		dig /= 10;
-		i--;
-	}
-	return darr;
-}
-
-int enumdig(int n) {
-	int d = 0;
-	while (n) {n/=10;d++;}
-	return d;
 }
 
 void create_dir_if_not_exist(const char* path) {
@@ -106,7 +71,7 @@ void server_main() { /*server: listen for connections*/
 	int serv = socket(AF_INET, SOCK_STREAM, 0);
 	int opt = 1;
 	setsockopt(serv, SOL_SOCKET, SO_REUSEADDR, &opt, (socklen_t)sizeof(opt));
-	(void)bind(serv, (struct sockaddr*)&addr, addsize); /*check output of this.*/
+	(void)bind(serv, (struct sockaddr*)&addr, addsize); /*TODO: check output of this.*/
 	listen(serv, 1);
 	for (;;) {
 		int fd = accept(serv, (struct sockaddr*)&addr, &addsize);
@@ -123,16 +88,22 @@ void server_main() { /*server: listen for connections*/
 
 struct Srvdata get_data(int fd) {
 	struct Srvdata sd;
-	char *buff = calloc(6,1);
+	char *buff = calloc(6,1); handleMemError(buff, "calloc(2) on get_data");
 	read(fd, buff, 5);
+	if (buff[0] == 0) {
+		sd.order=0;
+		sd.content=NULL;
+		sd.size=0;
+		return sd;
+	}
 	sd.order = buff[0]-48;
-	char *pbuff = buff; pbuff++;
+	char *pbuff = buff; pbuff++; 
 	int size = atoi(pbuff); /*digits*/
-	pbuff = calloc(size+1, 1);
+	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_data");
 	read(fd, pbuff, size);
 	size = atoi(pbuff); /*size*/
 	sd.size = size;
-	free(pbuff); pbuff = calloc(size+1, 1);
+	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_data");
 	read(fd, pbuff, size); /*content*/
 	sd.content=pbuff;
 	return sd;
@@ -140,16 +111,16 @@ struct Srvdata get_data(int fd) {
 
 struct Srvdata get_answ(int fd) {
 	struct Srvdata sd;
-	char *buff = calloc(5,1);
+	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
 	read(fd, buff, 4);
 	sd.order = 0;
 	char *pbuff = buff;
 	int size = atoi(pbuff); /*digits*/
-	pbuff = calloc(size+1, 1);
+	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
 	read(fd, pbuff, size);
 	size = atoi(pbuff); /*size*/
 	sd.size = size;
-	free(pbuff); pbuff = calloc(size+1, 1);
+	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
 	read(fd, pbuff, size); /*content*/
 	sd.content=pbuff;
 	return sd;
@@ -192,13 +163,14 @@ void *server_handle(void* conn) { /*server's core*/
 			}
 			case 5: { /*get home*/
 				char *home = getenv("HOME");
-				char *size = calloc(strlen(home)+1,1);
-				sprintf(size, "%lu", strlen(home));
+				char *size = calloc(enumdig(strlen(home))+1+1,1); /*+/ +\0*/ handleMemError(size, "calloc(2) on server_handle");
+				sprintf(size, "%lu", strlen(home)+1);
 				struct string hstr;
 				string_init(&hstr);
 				string_add(&hstr, itodg(enumdig(strlen(home))));
 				string_add(&hstr, size);
 				string_add(&hstr, home);
+				string_addch(&hstr, '/');
 				write(fd, hstr.str, hstr.size);
 				break;
 			}
@@ -238,10 +210,11 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	// create a window asking for the address
 	WINDOW* wr = tl->wobj[0].data->wins[4];
 	WINDOW* wfiles = tl->wobj[0].data->wins[5];
+	WINDOW* main = tl->wobj[0].data->wins[4];
 	WINDOW* tabwin = tl->wobj[0].data->wins[2];
 	WINDOW* stdscr = tl->wobj[0].data->wins[0];
+	WINDOW* wins[] = {stdscr, main, wfiles};
 	int y, x; getmaxyx(stdscr, y, x);
-	int m = y-2;
 	WINDOW* win = newwin(4, 37, y/2-2, x/2-18);
 	getmaxyx(win, y, x);
 	wbkgd(win, COLOR_PAIR(1));
@@ -251,14 +224,14 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	wrefresh(win);
 	char *buff;
 	ampsread(win, &buff, 2, 15, 21, 21, 0);
-	delwin(win); touchwin(wfiles); wrefresh(wfiles);
+	delwin(win); touchwin(main); wrefresh(wfiles);
 	if (!buff) {
-		dialog(stdscr, wr, "You have to write the port and the address");
+		dialog(wins, "You have to write the port and the address");
 		return 1;
 	}
 	char a[16]={0}; char b[6]={0}; char *arr[2]={a,b};
 	if (!get_addr(arr,buff)) {
-		dialog(stdscr, wr, "There was an error on the format of the address");
+		dialog(wins, "There was an error on the format of the address");
 		return 1;
 	}
 	// connect to address
@@ -269,7 +242,7 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	socklen_t size = sizeof(addr);
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (connect(fd, (struct sockaddr*)&addr, size) == -1) {
-		dialog(stdscr, wr, "An error ocurred on connect(2)");
+		dialog(wins, "An error ocurred on connect(2)");
 		return 1;
 	}
 	write(fd, "3471", 4);
@@ -281,8 +254,9 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 
 	tl->wobj[tl->size-1].local = 0;
 	tl->wobj[tl->size-1].pwd = NULL;
-	
-	WINDOW* wrf = newwin(m, 50, 3, 4);
+
+	getmaxyx(main, y, x);
+	WINDOW* wrf = newwin(y-2, 50, 3, 4);
 	keypad(wrf, 1); wbkgd(wrf, COLOR_PAIR(3));
 	tl->wobj[tl->size-1].win = wrf;
 

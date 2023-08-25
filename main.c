@@ -66,7 +66,7 @@ int main() {
 	wrefresh(stdscr); wrefresh(main); wrefresh(wfiles);
 
 	char *pwd = getcwd(NULL, 0);
-	pwd = realloc(pwd, strlen(pwd)+2);
+	pwd = realloc(pwd, strlen(pwd)+2);handleMemError(pwd, "realloc(2) on main");
 	strcat(pwd, "/");
 
 	struct Binding bind;
@@ -80,35 +80,44 @@ int main() {
 	data.wins=wins; data.wins_size = 6;
 	fdata.pwd=pwd;
 
-	struct Wobj *wobj = malloc(sizeof(struct Wobj));
+	struct Wobj *wobj = malloc(sizeof(struct Wobj));handleMemError(wobj, "malloc(2) on main");
 	wobj[0].data=&data;
 	wobj[0].bind=bind;
 	wobj[0].local=1;
 	wobj[0].win=wfiles;
 	wobj[0].pwd=pwd;
+	wobj[0].ls = NULL;
 	tl.wobj=wobj;
 
 	for (;;) {
-		struct Wobj wobj = get_current_tab(&tl);
+		struct Wobj *wobj = get_current_tab(&tl);
+		struct Fopt* fdata = (struct Fopt*)wobj->data->data;
 		wmove(main,0,0);wclrtoeol(main);
 		wattron(main, COLOR_PAIR(4));
-		mvwaddstr(main, 0, 0, wobj.pwd);
+		mvwaddstr(main, 0, 0, wobj->pwd);
 		wattroff(main, COLOR_PAIR(4));
 		wrefresh(main);
 
 		struct TCallback cb;
 
-		char** ls = NULL;
-		int size = list(wobj.pwd, &ls, fdata.dotfiles);
-		alph_sort(ls, size);
+		if (wobj->ls != NULL) {
+			/*free everything*/
+			for (int i=0; i<wobj->cb.nmemb; i++) {
+				free(wobj->ls[i]);
+			}
+			free(wobj->ls); wobj->ls=NULL;
+		}
+		int size = list(&tl, fdata->dotfiles);
+		alph_sort(wobj->ls, size);
 
 		int (*func[size])(struct TabList*, struct Data*,void*);void* args[size];
+		char **ls = wobj->ls;
 		for (int i=0;i<size;i++){
 			func[i]=handleFile;
 			args[i]=(void*)ls[i];
 		}
 		cb.func=func;cb.args=args;cb.nmemb=size;
-		wobj.cb=cb; wobj.ls= ls;
+		wobj->cb=cb;
 
 		int res = menu(&tl, display_files);
 		if (res) {
@@ -171,13 +180,15 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 
 	struct TabList tl;
 	tab_init(&tl);
-	struct Wobj *wobj = malloc(sizeof(struct Wobj));
+	struct Wobj *wobj = malloc(sizeof(struct Wobj));handleMemError(wobj, "malloc(2) on popup_menu");
 	wobj[0].bind=bind; wobj[0].ls=ls; wobj[0].cb=cb; wobj[0].data=&_data;wobj[0].local=0;
 	wobj[0].pwd=NULL;wobj[0].win=mwin;
 	tl.wobj=wobj;
 	for (;;) {
 		int res = menu(&tl, display_opts);
 		if (res) {
+			if (open("/tmp/efti/pid", O_RDONLY) == -1) {ls[0]="Start server";func[0]=launch_create;}
+			else {ls[0]="Stop server";func[0]=launch_stop;}
 			wmove(mwin,0,0);wclrtobot(mwin);
 			wrefresh(win);wrefresh(mwin);
 		} else break;

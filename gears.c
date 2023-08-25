@@ -12,6 +12,7 @@
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include "efti_srv.h"
 #include "gears.h"
 #include "libncread/ncread.h"
 #include "libncread/vector.h"
@@ -23,6 +24,50 @@ void handleError(int c, int n, const char* str) {
 	(void) puts("\t\033[1;31mEFTI has encountered an error.\033[0m");
 	(void) perror(str);
 	exit(1);
+}
+void handleMemError(void* m, const char* str) {
+	if (m!=NULL)return;
+	(void) endwin();
+	(void) puts("\t\033[1;31mEFTI has encountered an error.\033[0m");
+	(void) perror(str);
+	exit(1);
+}
+void dialog(WINDOW** wins, const char* s) {
+	int y,x; getmaxyx(wins[0],y,x);
+	int size=strlen(s)+2;
+	if (size >= x-25) size=x-25;
+	WINDOW *win = newwin(4, size, y/2-2, x/2-size/2);
+	box(win, ACS_VLINE, ACS_HLINE);
+	getmaxyx(win,y,x);
+	wbkgd(win, COLOR_PAIR(1));
+	mvwaddstr(win,1,1,s);
+	wattron(win, COLOR_PAIR(5));
+	mvwaddstr(win,2,x/2-2,"[OK]");
+	wattroff(win, COLOR_PAIR(5));
+	wrefresh(win);
+	for (;;) {
+		int ch=wgetch(win);
+		if (ch == 27 || ch == 10) break;
+	}
+	delwin(win); touchwin(wins[1]); wrefresh(wins[2]);
+}
+
+char *itodg(int dig) {
+	char *darr = calloc(5, 1); handleMemError(darr, "calloc(2) on itodg");
+	strcpy(darr, "0000");
+	int i=3;
+	while (dig) {
+		darr[i]=(dig%10)+48;
+		dig /= 10;
+		i--;
+	}
+	return darr;
+}
+
+int enumdig(int n) {
+	int d = 0;
+	while (n) {n/=10;d++;}
+	return d;
 }
 
 void tcbreak(struct termios *old, struct termios *tty) {
@@ -45,26 +90,50 @@ void dir_up(char *pwd) {
 	char *tmp = pwd+strlen(pwd)-2;
 	while (*tmp != '/') tmp--;
 	*(tmp+1) = 0;
-	pwd = realloc(pwd, strlen(pwd)+1);
+	pwd = realloc(pwd, strlen(pwd)+1);handleMemError(pwd, "realloc(2) on dir_up");
 }
 
 void dir_cd(char *pwd, char *dir) {
 	int size = strlen(pwd)+strlen(dir)+2;
-	pwd = realloc(pwd, size);
+	pwd = realloc(pwd, size);handleMemError(pwd, "realloc(2) on dir_cd");
 	strcat(pwd, dir);
 	pwd[size-2] = '/';
 	pwd[size-1] = 0;
 }
 
-int list(char *path, char*** ls, int dotfiles) {
+int list(struct TabList *tl, int dotfiles) {
+	struct Wobj *wobj = get_current_tab(tl);
+	char ***ls = &(wobj->ls);
+	int local = wobj->local;
+	if (!local) {
+		int fd = wobj->fd; // socket connection
+		char* pwd = wobj->pwd;
+		int size = strlen(pwd);
+		int digits = enumdig(size);
+		char *strsz = calloc(digits+1,1); snprintf(strsz, digits+1, "%d", size);
+		struct string str;
+		string_addch(&str, '4');
+		string_add(&str, itodg(digits));
+		string_add(&str, strsz);
+		string_add(&str, pwd);
+		write(fd, str.str, str.size);
+		struct Srvdata answ = get_answ(fd);
+
+		struct vector vec = string_split(answ.content, '/');
+		vector_pop(&vec);
+		wobj->ls = vec.str;
+		return vec.size;
+	}
 	int size = 0;
 	struct dirent *dt;
-	DIR *dir = opendir(path);
+	DIR *dir = opendir(wobj->pwd);
 	while ((dt=readdir(dir)) != NULL) {
 		if (!strcmp(dt->d_name, ".") || !strcmp(dt->d_name, "..")) continue;
 		if (dotfiles && dt->d_name[0] == '.') continue;
-		*ls = realloc(*ls, sizeof(char*)*(size+1));
-		(*ls)[size] = dt->d_name;
+		*ls = realloc(*ls, sizeof(char*)*(size+1));handleMemError(ls, "realloc(2) on list");
+		char *s = calloc(256,1);
+		strcpy(s,dt->d_name);
+		(*ls)[size] = s;
 		size++;
 	}
 	return size;
@@ -91,14 +160,14 @@ void pr_ls(char **ls, int size) {
 }
 
 void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
-	struct Wobj wobj = get_current_tab(tl);
-	WINDOW *win = wobj.win;
-	char **ls = wobj.ls;
-	int size = wobj.cb.nmemb;
-	void* data = wobj.data->data;
+	struct Wobj* wobj = get_current_tab(tl);
+	WINDOW *win = wobj->win;
+	char **ls = wobj->ls;
+	int size = wobj->cb.nmemb;
+	void* data = wobj->data->data;
 
 	struct Nopt* nopt = (struct Nopt*)data;
-	char *str = malloc(nopt->str_size); str[nopt->str_size-1]=0;
+	char *str = malloc(nopt->str_size); handleMemError(str, "malloc(2) on display_opts"); str[nopt->str_size-1]=0;
 	switch (mode) {
 		case 0:
 			if (size < top) { top = size; }
@@ -150,12 +219,12 @@ wchar_t *geticon(char* file) {
 	if (S_ISDIR(st.st_mode)) return L"";
 	char *s=NULL; int size = 0;
 	for (int i=strlen(file)-1; i>=0; i--) {
-		s = realloc(s, size+1);
+		s = realloc(s, size+1);handleMemError(s, "realloc(2) on geticon");
 		s[size] = file[i];
 		if (file[i] == '.') {size++;break;}
 		size++;
 	}
-	s=realloc(s,size+1); s[size]=0;
+	s=realloc(s,size+1); handleMemError(s, "realloc(2) on geticon");s[size]=0;
 	reverse(s);
 	wchar_t *ico;
 	if (!strcmp(s, ".c")) ico=L" ";
@@ -172,15 +241,15 @@ wchar_t *geticon(char* file) {
 }
 
 void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) {
-	struct Wobj wobj = get_current_tab(tl);
-	WINDOW *win = wobj.win;
-	char **ls = wobj.ls;
-	int size = wobj.cb.nmemb;
-	void* data = wobj.data->data;
-	int local = wobj.local;
+	struct Wobj* wobj = get_current_tab(tl);
+	WINDOW *win = wobj->win;
+	char **ls = wobj->ls;
+	int size = wobj->cb.nmemb;
+	void* data = wobj->data->data;
+	int local = wobj->local;
 
 	char str[50]; str[49]=0;
-	char *pwd = wobj.pwd;
+	char *pwd = wobj->pwd;
 	char *path = NULL;
 	int len, nsize;
 	struct stat st;
@@ -190,7 +259,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			int p=0;
 			for (int i=start; i<top; i++) {
 				len = strlen(ls[i]);
-				char *path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[i]);
+				char *path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[i]);
 				nsize = (len<49-2) ?  len: 49-2;
 				if (local) stat(path, &st);
 				mvwaddwstr(win, p, 0, geticon(path));
@@ -204,7 +273,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			return;
 		case 1:
 			len = strlen(ls[ptrs[1]]);
-			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
+			path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
@@ -213,7 +282,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]-1]);
-			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
+			path = realloc(path, len+strlen(pwd)+1);handleMemError(path, "realloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
 			mvwaddwstr(win, ptrs[0]-1, 0, geticon(path));
@@ -225,7 +294,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			return;
 		case 2:
 			len = strlen(ls[ptrs[1]]);
-			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
+			path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
@@ -234,7 +303,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]+1]);
-			path = realloc(path, len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
+			path = realloc(path, len+strlen(pwd)+1);handleMemError(path, "realloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
 			mvwaddwstr(win, ptrs[0]+1, 0, geticon(path));
@@ -247,7 +316,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 		case 3:
 			if (!size) return;
 			len = strlen(ls[ptrs[1]]);
-			path = malloc(len+strlen(pwd)+1);strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
+			path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize+2);
 			wattron(win, A_UNDERLINE);
@@ -268,10 +337,10 @@ int search_binding(int ch, struct Binding bind) {
 }
 
 int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int)) {
-	struct Wobj wobj = get_current_tab(tl);
-	struct TCallback cb = wobj.cb; struct Data *data = wobj.data;
-	struct Binding bind = wobj.bind;
-	char **ls = wobj.ls; char *pwd = wobj.pwd; WINDOW* win = wobj.win;
+	struct Wobj *wobj = get_current_tab(tl);
+	struct TCallback cb = wobj->cb; struct Data *data = wobj->data;
+	struct Binding bind = wobj->bind;
+	char **ls = wobj->ls; char *pwd = wobj->pwd; WINDOW* win = wobj->win;
 	int y; int x; getmaxyx(win, y, x);
 	int p = 0;
 	int sp = 0;
@@ -333,9 +402,9 @@ int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int)) {
 }
 
 int handleFile(struct TabList *tl, struct Data *data, void* f) {
-	struct Wobj wobj = get_current_tab(tl);
+	struct Wobj* wobj = get_current_tab(tl);
 	char* name = (char*)f;
-	char* pwd = wobj.pwd;
+	char* pwd = wobj->pwd;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
 	struct stat st;
 	stat(path, &st);
@@ -344,7 +413,7 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 		endwin();
 		int pid = fork();
 		if (!pid) {
-			char *cpy = malloc(strlen(pwd)+strlen(name)+1);
+			char *cpy = malloc(strlen(pwd)+strlen(name)+1);handleMemError(cpy, "malloc(2) on handleFile");
 			strcpy(cpy, pwd);
 			strcat(cpy, name);
 			cpy[strlen(pwd)+strlen(name)] = 0;
@@ -360,9 +429,9 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 
 int execute(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
-	struct Wobj wobj = get_current_tab(tl);
-	char *pwd = wobj.pwd;
-	char*path = malloc(strlen(pwd)+strlen(file)+1);
+	struct Wobj *wobj = get_current_tab(tl);
+	char *pwd = wobj->pwd;
+	char*path = malloc(strlen(pwd)+strlen(file)+1);handleMemError(path, "malloc(2) on execute");
 	strcpy(path,pwd);strcat(path,file);
 	struct stat st;
 	stat(path, &st);
@@ -397,9 +466,9 @@ int execwargs_ok(WINDOW* win, struct Data* data, void* n) {
 
 int execwargs(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
-	struct Wobj wobj = get_current_tab(tl);
-	char *pwd = wobj.pwd;
-	char *path = malloc(strlen(pwd)+strlen(file)+1);
+	struct Wobj *wobj = get_current_tab(tl);
+	char *pwd = wobj->pwd;
+	char *path = malloc(strlen(pwd)+strlen(file)+1);handleMemError(path, "malloc(2) on execwargs");
 	strcpy(path,pwd);strcat(path,file);
 
 	WINDOW* stdscr = data->wins[0];
@@ -445,9 +514,9 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 		struct vector str;
 		if (buff!=NULL && strlen(buff)) str = string_split(buff, ' ');
 		else {vector_init(&str);};
-		str.str=realloc(str.str,sizeof(struct vector)*(str.size+1));
+		str.str=realloc(str.str,sizeof(struct vector)*(str.size+1));handleMemError(str.str, "realloc(2) on execwargs");
 		str.str[str.size]=NULL;str.size++;
-		char **tmpstr = malloc(sizeof(char**)*(str.size+1));
+		char **tmpstr = malloc(sizeof(char**)*(str.size+1));handleMemError(tmpstr, "malloc(2) on execwargs");
 		tmpstr[0] = path;
 		for (int i=1; i<str.size+1; i++) {
 			tmpstr[i] = str.str[i-1];
@@ -481,12 +550,12 @@ int isImg(char* file) {
 	if (!file) return 1;
 	char *s=NULL; int size = 0;
 	for (int i=strlen(file)-1; i>=0; i--) {
-		s = realloc(s, size+1);
+		s = realloc(s, size+1);handleMemError(s, "realloc(2) on isImg");
 		s[size] = file[i];
 		if (file[i] == '.') {size++;break;}
 		size++;
 	}
-	s=realloc(s,size+1);s[size]=0;
+	s=realloc(s,size+1);s[size]=0;handleMemError(s, "realloc(2) on isImg");
 	reverse(s);
 	if (!strcmp(s, ".png") || !strcmp(s, ".jpg")) {free(s);return 1;}
 	free(s);
@@ -494,15 +563,15 @@ int isImg(char* file) {
 }
 
 int view(struct TabList *tl, struct Data *data, char *file) {
-	struct Wobj wobj = get_current_tab(tl);
-	char *pwd=wobj.pwd;
+	struct Wobj *wobj = get_current_tab(tl);
+	char *pwd=wobj->pwd;
 	if (!file) return 1;
 	struct stat st;
 	stat(file, &st);
 	if (S_ISDIR(st.st_mode) || !isImg(file)) return 1;
 	int PID = fork();
 	if (!PID) {
-		char*param = malloc(strlen(pwd)+strlen(file)+1);
+		char*param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");
 		strcpy(param,pwd);strcat(param,file);
 		close(0);close(1);close(2);
 		execlp("feh", "feh", param, NULL);
@@ -511,7 +580,7 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 	return 1;
 }
 
-int updir(struct TabList *tl, struct Data *data, char* file) {struct Wobj wobj = get_current_tab(tl);dir_up(wobj.pwd);return 1;}
+int updir(struct TabList *tl, struct Data *data, char* file) {struct Wobj *wobj = get_current_tab(tl);dir_up(wobj->pwd);return 1;}
 
 int hideDot(struct TabList *tl, struct Data *data, char* file) {
 	struct Fopt* fdata = (struct Fopt*)data->data;
@@ -523,8 +592,8 @@ int menu_close(struct TabList *tl, struct Data *data, void* args) {return 0;}
 
 int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
-	struct Wobj wobj = get_current_tab(tl);
-	char *pwd = wobj.pwd;
+	struct Wobj *wobj = get_current_tab(tl);
+	char *pwd = wobj->pwd;
 	WINDOW* stdscr = data->wins[0];
 	int y,x; getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
@@ -539,8 +608,8 @@ int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	ampsread(win, &buff, 1, 7, 20, 20, 0);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) {free(buff);return 1;}
-	char *A = malloc(strlen(pwd)+strlen(file)+1);
-	char *B = malloc(strlen(pwd)+strlen(buff)+1);
+	char *A = malloc(strlen(pwd)+strlen(file)+1);handleMemError(A, "malloc(2) on fileRename");
+	char *B = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(B, "malloc(2) on fileRename");
 	strcpy(A, pwd); strcat(A, file);
 	strcpy(B, pwd); strcat(B, buff);
 	rename(A, B);
@@ -553,7 +622,7 @@ int fselect(struct TabList *tl, struct Data *data, char* file) {
 	struct Fopt *fdata = (struct Fopt*)data->data;
 	char *pwd = fdata->pwd;
 	if (fdata->tmp_path==NULL) {
-		char *path = malloc(strlen(pwd)+strlen(file)+1);
+		char *path = malloc(strlen(pwd)+strlen(file)+1);handleMemError(path, "malloc(2) on fselect");
 		strcpy(path, pwd); strcat(path, file);
 		fdata->tmp_path = path;
 		mvwaddwstr(data->wins[1],0, 2, L"");
@@ -586,14 +655,14 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 	if (ch=='y') {
 		char *s=NULL; int size = 0;
 		for (int i=strlen(spath)-1; i>=0; i--) {
-			s = realloc(s, size+1);
+			s = realloc(s, size+1);handleMemError(s, "realloc(2) on fmove");
 			if (spath[i] == '/') {break;}
 			s[size] = spath[i];
 			size++;
 		}
-		s=realloc(s,size+1);s[size]=0;
+		s=realloc(s,size+1);handleMemError(s, "realloc(2) on fmove");s[size]=0;
 		reverse(s);
-		char* path = malloc(strlen(pwd)+strlen(s)+1);
+		char* path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fmove");
 		strcpy(path, pwd);strcat(path, s);
 		if (rename(spath, path) == -1) {
 			endwin();
@@ -617,7 +686,7 @@ void copy(char *A, char *B) {
 	stat(A, &st);
 	if S_ISDIR(st.st_mode) return;
 	FILE *FA = fopen(A, "r");
-	char *buff = malloc(st.st_size);
+	char *buff = malloc(st.st_size);handleMemError(buff, "malloc(2) on copy");
 	fread(buff, 1, st.st_size, FA);
 
 	FILE *FB = fopen(B, "w");
@@ -634,14 +703,14 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	char *spath = fdata->tmp_path;
 	char *s=NULL; int size = 0;
 	for (int i=strlen(spath)-1; i>=0; i--) {
-		s = realloc(s, size+1);
+		s = realloc(s, size+1);handleMemError(s, "realloc(2) on fcopy");
 		if (spath[i] == '/') {break;}
 		s[size] = spath[i];
 		size++;
 	}
-	s=realloc(s,size+1);s[size]=0;
+	s=realloc(s,size+1);handleMemError(s, "realloc(2) on fcopy");s[size]=0;
 	reverse(s);
-	char *path = malloc(strlen(pwd)+strlen(s)+1);
+	char *path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fcopy");
 	(void) strcpy(path,pwd); (void)strcat(path,s);
 	(void) copy(spath,path);
 	
@@ -670,7 +739,7 @@ int fdelete(struct TabList *tl, struct Data *data, char* file) {
 	int ch = wgetch(win);
 	if (ch == 'y') {
 		char *pwd = ((struct Fopt*)data->data)->pwd;
-		char *path = malloc(strlen(pwd)+strlen(file)+1);
+		char *path = malloc(strlen(pwd)+strlen(file)+1);handleMemError(path, "malloc(2) on fdelete");
 		(void) strcpy(path, pwd); (void) strcat(path, file);
 		_= remove(path); handleError(_, -1, "fdelete: remove");
 		(void) free(path);
@@ -695,7 +764,7 @@ int fnew(struct TabList *tl, struct Data *data, char* file) {
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;
-	char *path = malloc(strlen(pwd)+strlen(buff)+1);
+	char *path = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(path, "malloc(2) on fnew");
 	(void) strcpy(path,pwd); (void)strcat(path, buff);
 	struct stat st;
 	if (stat(path, &st) != -1) return 1;
@@ -720,7 +789,7 @@ int dnew(struct TabList *tl, struct Data *data, char* file) {
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;
-	char *path = malloc(strlen(pwd)+strlen(buff)+1);
+	char *path = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(path, "malloc(2) on dnew");
 	(void) strcpy(path, pwd); (void)strcat(path, buff);
 	struct stat st;
 	if (stat(path, &st) != -1) return 1;
@@ -739,8 +808,8 @@ void add_tab(WINDOW* tabwin, struct TabList *tl) {
 		wattroff(tabwin, COLOR_PAIR(6));
 		wrefresh(tabwin);
 	}
-	tl->wobj = realloc(tl->wobj, tl->size+1);
-	tl->list = realloc(tl->list, tl->size+1);
+	tl->wobj = realloc(tl->wobj, sizeof(struct Wobj)*tl->size+1);handleMemError(tl->wobj, "realloc(2) on add_tab");
+	tl->list = realloc(tl->list, tl->size+1);handleMemError(tl->wobj, "realloc(2) on add_tab");
 	tl->list[tl->size] = tl->size+1;
 	char str[4] = {' ', tl->list[tl->size]+48, ' ', 0};
 	wattron(tabwin, COLOR_PAIR(7));
@@ -752,7 +821,7 @@ void add_tab(WINDOW* tabwin, struct TabList *tl) {
 }
 
 void del_tab(WINDOW* tabwin, struct TabList *tl) {
-	tl->list = realloc(tl->list, tl->size-1);
+	tl->list = realloc(tl->list, tl->size-1);handleMemError(tl->list, "realloc(2) on del_tab");
 	tl->size--;
 	wmove(tabwin,0,0);wclrtoeol(tabwin);
 	for (int i=0; i<tl->size; i++) {
@@ -785,7 +854,7 @@ void tab_switch(WINDOW* tabwin, struct TabList *tl) {
 	wrefresh(tabwin);
 }
 
-struct Wobj get_current_tab(struct TabList *tl) {return tl->wobj[tl->point];}
+struct Wobj* get_current_tab(struct TabList *tl) {return &(tl->wobj[tl->point]);}
 
 struct Mobj NewText(int y, int x, const char* text) {
 	struct ObjText a;
