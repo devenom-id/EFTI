@@ -86,34 +86,26 @@ void server_main() { /*server: listen for connections*/
 	}
 }
 
-struct Srvdata get_data(int fd) {
+struct Srvdata get_answ(int fd) {
 	struct Srvdata sd;
-	char *buff = calloc(6,1); handleMemError(buff, "calloc(2) on get_data");
-	read(fd, buff, 5);
-	if (buff[0] == 0) {
-		sd.order=0;
-		sd.content=NULL;
-		sd.size=0;
-		return sd;
-	}
-	sd.order = buff[0]-48;
-	char *pbuff = buff; pbuff++; 
+	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
+	read(fd, buff, 4);
+	char *pbuff = buff;
 	int size = atoi(pbuff); /*digits*/
-	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_data");
+	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
 	read(fd, pbuff, size);
 	size = atoi(pbuff); /*size*/
 	sd.size = size;
-	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_data");
+	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
 	read(fd, pbuff, size); /*content*/
 	sd.content=pbuff;
 	return sd;
 }
 
-struct Srvdata get_answ(int fd) {
+struct Srvdata get_ls(int fd) {
 	struct Srvdata sd;
 	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
 	read(fd, buff, 4);
-	sd.order = 0;
 	char *pbuff = buff;
 	int size = atoi(pbuff); /*digits*/
 	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
@@ -131,8 +123,14 @@ void *server_handle(void* conn) { /*server's core*/
 	for (;;) {
 		struct pollfd rfd[1]; rfd[0].fd=fd;rfd[0].events=POLLIN;
 		poll(rfd, 1, -1);
-		struct Srvdata sd = get_data(fd);
-		switch (sd.order) {
+		int order=0;
+		struct Srvdata sd;sd.content=NULL;
+		char buff[1]={0}; read(fd, buff, 1);
+		if (buff[0] != 0) {
+			order=buff[0]-48;
+			sd = get_answ(fd);
+		}
+		switch (order) {
 			case 1: { /*ping (Can be used to disconnect for inactivity)*/
 				char tmpbf[1] = {1};
 				write(fd, tmpbf, 1);
@@ -144,10 +142,15 @@ void *server_handle(void* conn) { /*server's core*/
 				break;
 			case 4: { /*list files*/
 				DIR *dir = opendir(sd.content);
+				free(sd.content);
+				sd = get_answ(fd);
+				int dotfiles = atoi(sd.content);
 				struct dirent *dnt;
 				struct string files, hstr;
 				string_init(&files); string_init(&hstr);
 				while ((dnt=readdir(dir))!=NULL) {
+					if (!strcmp(dnt->d_name, ".") || !strcmp(dnt->d_name, "..")) continue;
+					if (dotfiles && dnt->d_name[0] == '.') continue;
 					string_add(&files, dnt->d_name);
 					string_addch(&files, '/');
 				}
@@ -176,9 +179,11 @@ void *server_handle(void* conn) { /*server's core*/
 			}
 			case 0: /*disconnected*/
 			case 6: /*disconnect*/
+				if (sd.content) free(sd.content);
 				close(fd);
 				return 0;
 		}
+		free(sd.content);
 	}
 	return 0;
 }
@@ -248,9 +253,12 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	write(fd, "3471", 4);
 	// create the Wobj and add it to TabList
 	add_tab(tabwin, tl);
-	tl->wobj[tl->size-1].data = tl->wobj[0].data;
-	struct Fopt *fopt = tl->wobj[tl->size-1].data->data;
-	fopt->tmp_path = NULL; fopt->pwd = NULL;
+	tl->wobj[tl->size-1].data = malloc(sizeof(struct Data));
+	struct Fopt *fopt = malloc(sizeof(struct Fopt));
+	fopt->tmp_path = NULL; fopt->dotfiles=0;
+	tl->wobj[tl->size-1].data->data = fopt;
+	tl->wobj[tl->size-1].data->wins_size = tl->wobj[0].data->wins_size;
+	tl->wobj[tl->size-1].data->wins = tl->wobj[0].data->wins;
 
 	tl->wobj[tl->size-1].local = 0;
 	tl->wobj[tl->size-1].pwd = NULL;
@@ -263,7 +271,8 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	tl->wobj[tl->size-1].fd = fd;
 	tl->wobj[tl->size-1].ls = NULL;
 	tl->wobj[tl->size-1].bind = tl->wobj[0].bind;
-	tl->wobj[tl->size-1].pwd = gethome(fd);
+	char* pwd = gethome(fd);
+	tl->wobj[tl->size-1].pwd = pwd;
 	return 1;
 }
 int client_disconnect();

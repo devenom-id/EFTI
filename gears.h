@@ -8,7 +8,6 @@ struct Nopt {
 };
 struct Fopt {
 	int dotfiles;
-	char* pwd;
 	char* tmp_path;
 };
 struct Data {
@@ -42,6 +41,7 @@ struct Wobj {
 	int fd;
 	char* pwd;
 	char** ls;
+	char* attrls;
 };
 struct TabList {
 	char *list;
@@ -80,9 +80,8 @@ void dialog(WINDOW** wins, const char* s);
 char *itodg(int dig);
 int enumdig(int n);
 void uptime(char* buff);
-void dir_up(char *pwd);
-void dir_cd(char *pwd, char *dir);
-//int list(char *path, char*** ls, int local, int dotfiles);
+void dir_up(char **pwd);
+void dir_cd(char **pwd, char *dir);
 int list(struct TabList *tl, int dotfiles);
 void alph_sort(char** ls, int size);
 void pr_ls(char **ls, int size);
@@ -107,6 +106,7 @@ void tab_init(struct TabList *tl);
 void add_tab(WINDOW* tabwin, struct TabList *tl);
 void del_tab(WINDOW* tabwin, struct TabList *tl);
 void tab_switch(WINDOW* tabwin, struct TabList *tl);
+int b_tab_switch(struct TabList *tl, struct Data* data, char* file);
 struct Wobj* get_current_tab(struct TabList *tl);
 struct Mobj NewText(int y, int x, const char* text); 
 struct Mobj NewField(int y, int x, int size);

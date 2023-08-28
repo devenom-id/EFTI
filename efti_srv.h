@@ -2,10 +2,10 @@
 #define EFTI_SRV_H
 #include "gears.h"
 struct Srvdata {
-	char order;
 	int size;
 	char *content;
 };
+enum FileAttr {FA_DIR=1, FA_EXEC=2};
 int client_connect(struct TabList *tl, struct Data *data, char* file);
 /* connect debe crear una conexión a un servidor remoto.
  * Debe crear un objeto wobj con todos los métodos para poder interactuar
@@ -26,6 +26,5 @@ void server_main();
 void* server_handle(void* conn);
 int server_send(struct TabList *tl, struct Data* data, void* n);
 int server_retrieve(struct TabList *tl, struct Data* data, void* n);
-struct Srvdata get_data(int fd);
 struct Srvdata get_answ(int fd);
 #endif

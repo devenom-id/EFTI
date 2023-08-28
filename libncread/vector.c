@@ -109,13 +109,15 @@ int string_addchat(struct string* st, char ch, int index) {
 		st->str[st->size-1] = aux;
 	}
 	st->str[index] = ch;
+	st->str[st->size] = 0;
 	return 0;
 }
 
 int string_pop(struct string* st) {
 	if (st->size == 0) {return -1;}
 	st->size--;
-	st->str = realloc(st->str, st->size);
+	st->str = realloc(st->str, st->size+1);
+	st->str[st->size]=0;
 	return 0;
 }
 
@@ -126,7 +128,8 @@ int string_popat(struct string* st, int index) {
 		st->str[i-1] = st->str[i];
 	}
 	st->size--;
-	st->str = realloc(st->str, st->size);
+	st->str = realloc(st->str, st->size+1);
+	st->str[st->size]=0;
 	return 0;
 }
 

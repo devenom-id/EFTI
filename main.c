@@ -70,15 +70,14 @@ int main() {
 	strcat(pwd, "/");
 
 	struct Binding bind;
-	int keys[14] = {'x','v','u','h','M','r','s','m','c','D','n','N', 'X', 'C'};
-	int (*binfunc[14])(struct TabList*, struct Data*, char *) = {execute, view, updir, hideDot, popup_menu, fileRename,
-						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs, client_connect};
-	bind.keys = keys; bind.func = binfunc; bind.nmemb=14;
+	int keys[15] = {'x','v','u','h','M','r','s','m','c','D','n','N', 'X', 'C', 9};
+	int (*binfunc[15])(struct TabList*, struct Data*, char *) = {execute, view, updir, hideDot, popup_menu, fileRename,
+						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs, client_connect, b_tab_switch};
+	bind.keys = keys; bind.func = binfunc; bind.nmemb=15;
 
 	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 6;
-	fdata.pwd=pwd;
 
 	struct Wobj *wobj = malloc(sizeof(struct Wobj));handleMemError(wobj, "malloc(2) on main");
 	wobj[0].data=&data;
