@@ -245,6 +245,17 @@ wchar_t *geticon(char* file) {
 	return ico;
 }
 
+int W_ISDIR(struct Wobj *wobj, int index, const char* f) {
+	if (wobj->local) {
+		struct stat st;
+		stat(f, &st);
+		if (S_ISDIR(st.st_mode)) return 1;
+		return 0;
+	}
+	if (wobj->attrls[index] == FA_DIR) return 1;
+	return 0;
+}
+
 void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) {
 	struct Wobj* wobj = get_current_tab(tl);
 	WINDOW *win = wobj->win;
@@ -257,7 +268,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 	char *pwd = wobj->pwd;
 	char *path = NULL;
 	int len, nsize;
-	struct stat st;
+	struct stat st;  // TODO REMOVE THIS
 	switch (mode) {
 		case 0:
 			if (size < top) top = size; 
@@ -269,11 +280,9 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 				strcpy(path,pwd);
 				strcat(path,ls[i]);
 				nsize = (len<49-2) ?  len: 49-2;
-				if (local) stat(path, &st);
 				mvwaddwstr(win, p, 0, geticon(path));
 				mvwaddnstr(win, p, 2, ls[i], nsize);
-				if (S_ISDIR(st.st_mode)) mvwaddch(win, p, nsize+2, '/');
-				wrefresh(win); //remove
+				if (W_ISDIR(wobj, i, path)) mvwaddch(win, p, nsize+2, '/');
 				p++;
 				free(path);
 			}
@@ -286,7 +295,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
-			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');}
+			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]-1]);
@@ -295,7 +304,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
 			mvwaddwstr(win, ptrs[0]-1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]-1, 2, str, nsize);
-			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');}
+			if (W_ISDIR(wobj, ptrs[1]-1, path)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
 			free(path);
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
@@ -307,7 +316,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
-			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');}
+			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
 			wattron(win, A_UNDERLINE);
 			len = strlen(ls[ptrs[1]+1]);
@@ -316,7 +325,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
 			mvwaddwstr(win, ptrs[0]+1, 0, geticon(path));
 			mvwaddnstr(win, ptrs[0]+1, 2, str, nsize);
-			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');}
+			if (W_ISDIR(wobj, ptrs[1]+1, path)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
 			free(path);
 			wattroff(win, A_UNDERLINE);
 			wrefresh(win);
@@ -330,7 +339,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			wattron(win, A_UNDERLINE);
 			mvwaddwstr(win, ptrs[0], 0, geticon(path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
-			if (local) {stat(path, &st); if (S_ISDIR(st.st_mode)) mvwaddch(win, ptrs[0], nsize+2, '/');}
+			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 			free(path);
 			wattroff(win, A_UNDERLINE);
 			return;

@@ -102,22 +102,6 @@ struct Srvdata get_answ(int fd) {
 	return sd;
 }
 
-struct Srvdata get_ls(int fd) {
-	struct Srvdata sd;
-	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
-	read(fd, buff, 4);
-	char *pbuff = buff;
-	int size = atoi(pbuff); /*digits*/
-	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, size);
-	size = atoi(pbuff); /*size*/
-	sd.size = size;
-	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, size); /*content*/
-	sd.content=pbuff;
-	return sd;
-}
-
 void *server_handle(void* conn) { /*server's core*/
 	int fd = *((int*)conn);
 	for (;;) {
