@@ -121,7 +121,6 @@ int list(struct TabList *tl, int dotfiles) {
 		string_addch(&str, dotfiles+48);
 		write(fd, str.str, str.size);
 		struct Srvdata answ = get_answ(fd);
-
 		struct vector vec = string_split(answ.content, '/');
 		vector_pop(&vec);
 		wobj->ls = vec.str;
@@ -252,7 +251,18 @@ int W_ISDIR(struct Wobj *wobj, int index, const char* f) {
 		if (S_ISDIR(st.st_mode)) return 1;
 		return 0;
 	}
-	if (wobj->attrls[index] == FA_DIR) return 1;
+	if (wobj->attrls[index]-48 == FA_DIR) return 1;
+	return 0;
+}
+
+int W_ISEXEC(struct Wobj *wobj, int index, const char* f) {
+	if (wobj->local) {
+		struct stat st;
+		stat(f, &st);
+		if (!S_ISDIR(st.st_mode) && st.st_mode & S_IXUSR) return 1;
+		return 0;
+	}
+	if (wobj->attrls[index]-48 == FA_EXEC) return 1;
 	return 0;
 }
 

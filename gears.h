@@ -75,6 +75,7 @@ struct Mobj {
 	int id;
 	union Objtype object;
 };
+int popup_menu(struct TabList *otl, struct Data *data, char* file);
 void handleMemError(void* m, const char* str);
 void dialog(WINDOW** wins, const char* s);
 char *itodg(int dig);

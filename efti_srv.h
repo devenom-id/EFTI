@@ -6,6 +6,7 @@ struct Srvdata {
 	char *content;
 };
 enum FileAttr {FA_DIR=1, FA_EXEC=2};
+typedef int (*bindFunc)(struct TabList*, struct Data*, char *);
 int client_connect(struct TabList *tl, struct Data *data, char* file);
 /* connect debe crear una conexión a un servidor remoto.
  * Debe crear un objeto wobj con todos los métodos para poder interactuar

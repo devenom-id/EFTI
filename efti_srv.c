@@ -2,6 +2,8 @@
 #include <ncurses.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
@@ -126,25 +128,41 @@ void *server_handle(void* conn) { /*server's core*/
 				break;
 			case 4: { /*list files*/
 				DIR *dir = opendir(sd.content);
-				free(sd.content);
-				sd = get_answ(fd);
+				int path_size = sd.size;
+				char *path=calloc(sd.size+1,1); strcpy(path, sd.content);
+				sd = get_answ(fd); // hideDot
 				int dotfiles = atoi(sd.content);
 				struct dirent *dnt;
-				struct string files, hstr;
-				string_init(&files); string_init(&hstr);
+				struct string files, hstr, attrs;
+				string_init(&files); string_init(&hstr); string_init(&attrs);
 				while ((dnt=readdir(dir))!=NULL) {
 					if (!strcmp(dnt->d_name, ".") || !strcmp(dnt->d_name, "..")) continue;
 					if (dotfiles && dnt->d_name[0] == '.') continue;
 					string_add(&files, dnt->d_name);
 					string_addch(&files, '/');
+					char* name = calloc(path_size+strlen(dnt->d_name)+1, 1);
+					strcpy(name, path);
+					strcat(name, dnt->d_name);
+					struct stat st; stat(name, &st);
+					if (S_ISDIR(st.st_mode)) string_addch(&attrs, FA_DIR+48);
+					else if (!S_ISDIR(st.st_mode) && st.st_mode & S_IXUSR)
+						string_addch(&attrs, FA_EXEC+48);
+					else string_addch(&attrs, 48);
 				}
-				char files_size[11] = {0}; snprintf(files_size, 10, "%d", files.size);
+				//TODO check if files_size can be adjusted
+				char files_size[11] = {0}; snprintf(files_size, 11, "%d", files.size);
 				char *files_size_digit = itodg(enumdig(files.size));
 				string_add(&hstr, files_size_digit);
 				string_add(&hstr, files_size);
 				string_add(&hstr, files.str);
+				char *attr_size = calloc(attrs.size+1,1);
+				snprintf(attr_size, attrs.size+1, "%d", attrs.size);
+				char *attr_digit = itodg(enumdig(attrs.size));
+				string_add(&hstr, attr_digit);
+				string_add(&hstr, attr_size);
+				string_add(&hstr, attrs.str);
 				int wres = write(fd, hstr.str, hstr.size);
-				string_free(&hstr); string_free(&files);
+				string_free(&hstr); string_free(&files); string_free(&attrs);
 				closedir(dir);
 				break;
 			}
@@ -193,6 +211,20 @@ char* gethome(int fd) {
 	poll(pfd, 1, -1);
 	struct Srvdata sd = get_answ(fd);
 	return sd.content;
+}
+
+int* newBindArr_1(int argc, ...) {
+	int *arr = malloc(sizeof(int)*argc);
+	va_list argv; va_start(argv, argc);
+	for (int i=0; i<argc; i++) {arr[i] = va_arg(argv, int);}
+	return arr;
+}
+
+bindFunc *newBindArr_2(int argc, ...) {
+	bindFunc *arr = malloc(sizeof(bindFunc)*argc);
+	va_list argv; va_start(argv, argc);
+	for (int i=0; i<argc; i++) {arr[i] = va_arg(argv, bindFunc);}
+	return arr;
 }
 
 int client_connect(struct TabList *tl, struct Data *data, char* file) {
@@ -254,7 +286,11 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 
 	tl->wobj[tl->size-1].fd = fd;
 	tl->wobj[tl->size-1].ls = NULL;
-	tl->wobj[tl->size-1].bind = tl->wobj[0].bind;
+	tl->wobj[tl->size-1].attrls = NULL;
+	tl->wobj[tl->size-1].bind.keys = newBindArr_1(13, 'v','u','h','M','r','s','m','c','D','n','N', 'C', 9);
+	tl->wobj[tl->size-1].bind.func = newBindArr_2(13, view, updir, hideDot, popup_menu, fileRename,
+						fselect, fmove, fcopy, fdelete, fnew, dnew, client_connect, b_tab_switch);
+	tl->wobj[tl->size-1].bind.nmemb = 13;
 	char* pwd = gethome(fd);
 	tl->wobj[tl->size-1].pwd = pwd;
 	return 1;
