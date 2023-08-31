@@ -278,7 +278,6 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 	char *pwd = wobj->pwd;
 	char *path = NULL;
 	int len, nsize;
-	struct stat st;  // TODO REMOVE THIS
 	switch (mode) {
 		case 0:
 			if (size < top) top = size; 
@@ -591,12 +590,16 @@ int isImg(char* file) {
 }
 
 int view(struct TabList *tl, struct Data *data, char *file) {
+	/* Si no es local, entonces lo descarga en /tmp/efti/ con un nombre numérico
+	 * pero conservando su extensión. El número empieza en 0 y aumenta por 1,
+	 * y el número del último archivo temporal descargado se guarda en
+	 * /tmp/efti/maxfn. Se ajustan las variables antes del fork para que no sea
+	 * necesario alterar nada del código del proceso hijo para hacerlo compatible.
+	 */
 	struct Wobj *wobj = get_current_tab(tl);
 	char *pwd=wobj->pwd;
 	if (!file) return 1;
-	struct stat st;
-	stat(file, &st);
-	if (S_ISDIR(st.st_mode) || !isImg(file)) return 1;
+	if (W_ISDIR(wobj, wobj->data->ptrs[1],file) || !isImg(file)) return 1;
 	int PID = fork();
 	if (!PID) {
 		char*param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");

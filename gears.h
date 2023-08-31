@@ -87,6 +87,8 @@ int list(struct TabList *tl, int dotfiles);
 void alph_sort(char** ls, int size);
 void pr_ls(char **ls, int size);
 void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode);
+int W_ISDIR(struct Wobj *wobj, int index, const char* f);
+int W_ISEXEC(struct Wobj *wobj, int index, const char* f);
 void display_files(struct TabList *tl, int start, int top, int* ptrs, int mode);
 int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int));
 int handleFile(struct TabList *tl, struct Data *data, void* f);
