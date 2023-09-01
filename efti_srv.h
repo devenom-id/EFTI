@@ -12,6 +12,7 @@ int client_connect(struct TabList *tl, struct Data *data, char* file);
  * Debe crear un objeto wobj con todos los métodos para poder interactuar
  * con el server. En otras palabras, crear una nueva tab en la tablist.
  * Recordatorio: Cada tab en la tablist es una wobj.*/
+void create_dir_if_not_exist(const char* path);
 void server_create();
 /* create debe crear un proceso nuevo usando fork().
  * Cuando el proceso padre muera, el server seguirá online.
@@ -24,8 +25,9 @@ int client_disconnect();
 /* Cierra la conexión al servidor remoto.
  * Destruye el wobj asociado a esa conexión. (del_tab)*/
 void server_main();
+struct Srvdata get_answ(int fd);
+struct Srvdata get_fdata(int fd);
 void* server_handle(void* conn);
 int server_send(struct TabList *tl, struct Data* data, void* n);
 int server_retrieve(struct TabList *tl, struct Data* data, void* n);
-struct Srvdata get_answ(int fd);
 #endif

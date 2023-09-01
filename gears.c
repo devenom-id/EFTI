@@ -595,15 +595,46 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 	 * y el número del último archivo temporal descargado se guarda en
 	 * /tmp/efti/maxfn. Se ajustan las variables antes del fork para que no sea
 	 * necesario alterar nada del código del proceso hijo para hacerlo compatible.
+	 * Mientras se hace la transacción debería mostrarse un cartel diciendo que
+	 * se está obteniendo el archivo.
 	 */
 	struct Wobj *wobj = get_current_tab(tl);
 	char *pwd=wobj->pwd;
+	int local = wobj->local;
 	if (!file) return 1;
 	if (W_ISDIR(wobj, wobj->data->ptrs[1],file) || !isImg(file)) return 1;
-	int PID = fork();
+	pid_t PID = fork();
 	if (!PID) {
 		char*param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");
 		strcpy(param,pwd);strcat(param,file);
+		if (!local) {
+			struct string hstr; string_init(&hstr);
+			// order - dig - size - cont
+			// TODO check if size of size[] can be adjusted later to something better
+			char size[11]; snprintf(size, 11, "%lu", strlen(pwd)+strlen(file));
+			string_addch(&hstr, '2');
+			string_add(&hstr, itodg(enumdig(strlen(pwd)+strlen(file))));
+			string_add(&hstr, size);
+			string_add(&hstr, param);
+			write(wobj->fd, hstr.str, hstr.size);
+			struct Srvdata svd = get_fdata(wobj->fd);
+			create_dir_if_not_exist("/tmp/efti");
+			FILE* F_a = fopen("/tmp/efti/maxfn", "r");
+			if (F_a) {
+				struct stat st; stat("/tmp/efti/maxfn", &st);
+				char *maxfn_str = calloc(st.st_size+1, 1);
+				fread(maxfn_str, 1, st.st_size, F_a); // get max number
+				int maxfn = atoi(maxfn_str)+1;
+				FILE *F_b = fopen(maxfn_str, "w"); // open tmp file
+				int maxfn_ssize = enumdig(maxfn);
+				maxfn_str = realloc(maxfn_str, maxfn_ssize+1);  // to write max + 1
+				snprintf(maxfn_str, maxfn_ssize+1, "%d", maxfn);
+				fclose(F_a); F_a = fopen("/tmp/efti/maxfn", "w");
+				fwrite(maxfn_str,1,maxfn_ssize, F_a);  // wrote max + 1
+				; // TODO continue HERE
+				fclose(F_a); fclose(F_b);
+			} else {fclose(F_a);}
+		}
 		close(0);close(1);close(2);
 		execlp("feh", "feh", param, NULL);
 		exit(1);

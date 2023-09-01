@@ -1,1 +1,0 @@
-comp(){ gcc ncread.c vector.c -c -lncurses -g; }

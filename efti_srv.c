@@ -47,7 +47,6 @@ void create_dir_if_not_exist(const char* path) {
 }
 
 void server_create() { /*Create server's process*/
-	unlink("log");
 	create_dir_if_not_exist("/tmp/efti");
 	if (open("/tmp/efti/pid", O_RDONLY) != -1) { /*if server exists, don't create another one*/
 		return;
@@ -104,6 +103,30 @@ struct Srvdata get_answ(int fd) {
 	return sd;
 }
 
+struct Srvdata get_fdata(int fd) {
+	struct Srvdata sd;
+	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
+	read(fd, buff, 4);
+	char *pbuff = buff;
+	int size = atoi(pbuff); /*digits*/
+	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
+	read(fd, pbuff, size);
+	size = atoi(pbuff); /*size*/
+	sd.size = size;
+	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
+	struct string fdata; string_init(&fdata);
+	while (fdata.size != size) {
+		read(fd, pbuff, size); /*content*/
+		string_add(&fdata, pbuff);
+		if (size-fdata.size) {
+			free(pbuff);
+			pbuff=calloc((size-fdata.size)+1, 1);
+		}
+	}
+	sd.content=fdata.str;
+	return sd;
+}
+
 void *server_handle(void* conn) { /*server's core*/
 	int fd = *((int*)conn);
 	for (;;) {
@@ -122,8 +145,26 @@ void *server_handle(void* conn) { /*server's core*/
 				write(fd, tmpbf, 1);
 				break;
 			}
-			case 2: /*send (I'll send you, you receive)*/
+			case 2: {/*send (I'll send you, you receive)*/
+				/*
+				 * sd.content tendrá "2000xn/home/darth/file"
+				 */
+				;
+				FILE *fn = fopen(sd.content, "r");
+				struct stat st; stat(sd.content, &st);
+				char *buffer = calloc(st.st_size+1, 1);
+				fread(buffer, 1, st.st_size, fn);
+				fclose(fn);
+				struct string ts; string_init(&ts);
+				char files_size[11] = {0}; snprintf(files_size, 11, "%lu\n", st.st_size);
+				string_add(&ts, itodg(enumdig(st.st_size)));
+				string_add(&ts, files_size);
+				string_add(&ts, buffer);
+				write(fd, ts.str, ts.size);
+				free(buffer);
+				string_free(&ts);
 				break;
+			}
 			case 3: /*download (I'll download this file)*/
 				break;
 			case 4: { /*list files*/
