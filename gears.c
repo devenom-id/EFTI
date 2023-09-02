@@ -589,6 +589,32 @@ int isImg(char* file) {
 	return 0;
 }
 
+void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
+	struct string hstr; string_init(&hstr);
+	// order - dig - size - cont
+	// TODO check if size of size[] can be adjusted later to something better
+	char sz[11]; snprintf(sz, 11, "%lu", size);
+	string_addch(&hstr, order+48);
+	string_add(&hstr, itodg(dig));
+	string_add(&hstr, sz);
+	string_add(&hstr, param);
+	write(fd, hstr.str, hstr.size);
+	string_free(&hstr);
+}
+
+struct Srvdata high_GetFileData(int fd, char* path) {
+	int size = strlen(path);
+	high_SendOrder(fd, 2, enumdig(size), size, path);
+	return get_fdata(fd);
+}
+
+void increase_max_tmp() {
+}
+// TODO
+int high_GetTemp() {
+	increase_max_tmp();
+}
+
 int view(struct TabList *tl, struct Data *data, char *file) {
 	/* Si no es local, entonces lo descarga en /tmp/efti/ con un nombre numérico
 	 * pero conservando su extensión. El número empieza en 0 y aumenta por 1,
@@ -608,30 +634,26 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 		char*param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");
 		strcpy(param,pwd);strcat(param,file);
 		if (!local) {
-			struct string hstr; string_init(&hstr);
-			// order - dig - size - cont
-			// TODO check if size of size[] can be adjusted later to something better
-			char size[11]; snprintf(size, 11, "%lu", strlen(pwd)+strlen(file));
-			string_addch(&hstr, '2');
-			string_add(&hstr, itodg(enumdig(strlen(pwd)+strlen(file))));
-			string_add(&hstr, size);
-			string_add(&hstr, param);
-			write(wobj->fd, hstr.str, hstr.size);
-			struct Srvdata svd = get_fdata(wobj->fd);
+			struct Srvdata svd = high_GetFileData(wobj->fd, param);
 			create_dir_if_not_exist("/tmp/efti");
 			FILE* F_a = fopen("/tmp/efti/maxfn", "r");
 			if (F_a) {
 				struct stat st; stat("/tmp/efti/maxfn", &st);
 				char *maxfn_str = calloc(st.st_size+1, 1);
 				fread(maxfn_str, 1, st.st_size, F_a); // get max number
-				int maxfn = atoi(maxfn_str)+1;
-				FILE *F_b = fopen(maxfn_str, "w"); // open tmp file
-				int maxfn_ssize = enumdig(maxfn);
+				int maxfn = atoi(maxfn_str);
+
+				char *maxfn_copy = malloc(strlen(maxfn_str)+1);
+				strcpy(maxfn_copy, maxfn_str);
+				FILE *F_b = fopen(maxfn_copy, "w"); // open tmp file
+
+				int maxfn_ssize = enumdig(maxfn+1);
 				maxfn_str = realloc(maxfn_str, maxfn_ssize+1);  // to write max + 1
-				snprintf(maxfn_str, maxfn_ssize+1, "%d", maxfn);
+				snprintf(maxfn_str, maxfn_ssize+1, "%d", maxfn+1);
 				fclose(F_a); F_a = fopen("/tmp/efti/maxfn", "w");
 				fwrite(maxfn_str,1,maxfn_ssize, F_a);  // wrote max + 1
-				; // TODO continue HERE
+
+				fwrite(svd.content, 1, svd.size, F_b);
 				fclose(F_a); fclose(F_b);
 			} else {fclose(F_a);}
 		}
