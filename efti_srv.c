@@ -113,17 +113,16 @@ struct Srvdata get_fdata(int fd) {
 	read(fd, pbuff, size);
 	size = atoi(pbuff); /*size*/
 	sd.size = size;
-	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	struct string fdata; string_init(&fdata);
-	while (fdata.size != size) {
-		read(fd, pbuff, size); /*content*/
-		string_add(&fdata, pbuff);
-		if (size-fdata.size) {
-			free(pbuff);
-			pbuff=calloc((size-fdata.size)+1, 1);
-		}
+	free(pbuff);
+	char *fdata = malloc(size); handleMemError(fdata, "calloc(2) on get_answ");
+	int p=0;
+	while (size != p) {
+		int r = read(fd, fdata, size); /*content*/
+		fdata += r;
+		p += r;
 	}
-	sd.content=fdata.str;
+	fdata -= size;
+	sd.content=fdata;
 	return sd;
 }
 
@@ -150,17 +149,21 @@ void *server_handle(void* conn) { /*server's core*/
 				 * sd.content tendrá "2000xn/home/darth/file"
 				 */
 				;
-				FILE *fn = fopen(sd.content, "r");
+				FILE *fn = fopen(sd.content, "rb");
 				struct stat st; stat(sd.content, &st);
-				char *buffer = calloc(st.st_size+1, 1);
-				fread(buffer, 1, st.st_size, fn);
+				char *buffer = malloc(st.st_size);
+				int r = fread(buffer, 1, st.st_size, fn);
 				fclose(fn);
 				struct string ts; string_init(&ts);
-				char files_size[11] = {0}; snprintf(files_size, 11, "%lu\n", st.st_size);
+				char files_size[11] = {0}; snprintf(files_size, 11, "%lu", st.st_size);
 				string_add(&ts, itodg(enumdig(st.st_size)));
 				string_add(&ts, files_size);
-				string_add(&ts, buffer);
-				write(fd, ts.str, ts.size);
+				string_nadd(&ts, st.st_size, buffer);
+				int p = 0;
+				while (ts.size != p) {
+					int r = write(fd, ts.str, ts.size);
+					p += r;
+				}
 				free(buffer);
 				string_free(&ts);
 				break;

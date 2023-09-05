@@ -92,6 +92,15 @@ int string_add(struct string* st, char* str) {
 	return 0;
 }
 
+int string_nadd(struct string* st, int size, char* str) {
+	st->str = realloc(st->str, st->size+size);
+	for (int i=0; i<size; i++) {
+		st->str[st->size] = str[i];
+		st->size++;
+	}
+	return 0;
+}
+
 int string_addch(struct string* st, char ch) {
 	st->size++;
 	st->str = realloc(st->str, st->size+1);

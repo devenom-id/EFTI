@@ -35,6 +35,7 @@ void ivector_free(struct ivector* sm);
 
 void string_init(struct string* st);
 int string_add(struct string* st, char* str);
+int string_nadd(struct string* st, int size, char* str);
 int string_addch(struct string* st, char ch);
 int string_addchat(struct string* st, char ch, int index);
 int string_pop(struct string* st);

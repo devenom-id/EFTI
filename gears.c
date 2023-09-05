@@ -573,8 +573,7 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 	return 1;
 }
 
-int isImg(char* file) {
-	if (!file) return 1;
+char* getExtension(char* file) {
 	char *s=NULL; int size = 0;
 	for (int i=strlen(file)-1; i>=0; i--) {
 		s = realloc(s, size+1);handleMemError(s, "realloc(2) on isImg");
@@ -582,8 +581,15 @@ int isImg(char* file) {
 		if (file[i] == '.') {size++;break;}
 		size++;
 	}
-	s=realloc(s,size+1);s[size]=0;handleMemError(s, "realloc(2) on isImg");
+	s=realloc(s,size+1);handleMemError(s, "realloc(2) on isImg");
+	s[size]=0;
 	reverse(s);
+	return s;
+}
+
+int isImg(char* file) {
+	if (!file) return 1;
+	char* s = getExtension(file);
 	if (!strcmp(s, ".png") || !strcmp(s, ".jpg")) {free(s);return 1;}
 	free(s);
 	return 0;
@@ -608,11 +614,37 @@ struct Srvdata high_GetFileData(int fd, char* path) {
 	return get_fdata(fd);
 }
 
-void increase_max_tmp() {
+void increase_max_tmp(int tmp) {
+	FILE* F = fopen("/tmp/efti/maxfn", "w");
+	tmp++;
+	char *buff = calloc(enumdig(tmp)+1, 1);
+	sprintf(buff, "%d", tmp);
+	fwrite(buff, 1, enumdig(tmp), F);
+	fclose(F);
 }
-// TODO
-int high_GetTemp() {
-	increase_max_tmp();
+
+char* high_GetTempFile(char *file) {
+	create_dir_if_not_exist("/tmp/efti");
+	FILE* F = fopen("/tmp/efti/maxfn", "r");
+	if (!F) {
+		increase_max_tmp(0);
+		return "/tmp/efti/0";
+	}
+	struct stat st; stat("/tmp/efti/maxfn", &st);
+	char *buff = calloc(st.st_size+1, 1);
+	fread(buff, 1, st.st_size, F);
+	int tmp = atoi(buff);
+	fclose(F);
+	increase_max_tmp(tmp);
+	free(buff);
+	char *extension = getExtension(file);
+	buff = calloc(10+enumdig(tmp)+strlen(extension)+1, 1);
+	char* size = calloc(enumdig(tmp)+1, 1);
+	snprintf(size, enumdig(tmp)+1, "%d", tmp);
+	strcpy(buff, "/tmp/efti/");
+	strcat(buff, size);
+	strcat(buff, extension);
+	return buff;
 }
 
 int view(struct TabList *tl, struct Data *data, char *file) {
@@ -624,43 +656,28 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 	 * Mientras se hace la transacción debería mostrarse un cartel diciendo que
 	 * se está obteniendo el archivo.
 	 */
-	struct Wobj *wobj = get_current_tab(tl);
-	char *pwd=wobj->pwd;
+	struct Wobj* wobj = get_current_tab(tl);
+	char* pwd=wobj->pwd;
 	int local = wobj->local;
 	if (!file) return 1;
 	if (W_ISDIR(wobj, wobj->data->ptrs[1],file) || !isImg(file)) return 1;
 	pid_t PID = fork();
 	if (!PID) {
-		char*param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");
+		char* param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");
 		strcpy(param,pwd);strcat(param,file);
 		if (!local) {
 			struct Srvdata svd = high_GetFileData(wobj->fd, param);
-			create_dir_if_not_exist("/tmp/efti");
-			FILE* F_a = fopen("/tmp/efti/maxfn", "r");
-			if (F_a) {
-				struct stat st; stat("/tmp/efti/maxfn", &st);
-				char *maxfn_str = calloc(st.st_size+1, 1);
-				fread(maxfn_str, 1, st.st_size, F_a); // get max number
-				int maxfn = atoi(maxfn_str);
-
-				char *maxfn_copy = malloc(strlen(maxfn_str)+1);
-				strcpy(maxfn_copy, maxfn_str);
-				FILE *F_b = fopen(maxfn_copy, "w"); // open tmp file
-
-				int maxfn_ssize = enumdig(maxfn+1);
-				maxfn_str = realloc(maxfn_str, maxfn_ssize+1);  // to write max + 1
-				snprintf(maxfn_str, maxfn_ssize+1, "%d", maxfn+1);
-				fclose(F_a); F_a = fopen("/tmp/efti/maxfn", "w");
-				fwrite(maxfn_str,1,maxfn_ssize, F_a);  // wrote max + 1
-
-				fwrite(svd.content, 1, svd.size, F_b);
-				fclose(F_a); fclose(F_b);
-			} else {fclose(F_a);}
+			free(param);
+			param = high_GetTempFile(file);
+			FILE *Tmp = fopen(param, "wb");
+			fwrite(svd.content, 1, svd.size, Tmp);
+			fclose(Tmp);
 		}
 		close(0);close(1);close(2);
 		execlp("feh", "feh", param, NULL);
 		exit(1);
 	}
+	wait(NULL);
 	return 1;
 }
 
@@ -771,11 +788,11 @@ void copy(char *A, char *B) {
 	struct stat st;
 	stat(A, &st);
 	if S_ISDIR(st.st_mode) return;
-	FILE *FA = fopen(A, "r");
+	FILE *FA = fopen(A, "rb");
 	char *buff = malloc(st.st_size);handleMemError(buff, "malloc(2) on copy");
 	fread(buff, 1, st.st_size, FA);
 
-	FILE *FB = fopen(B, "w");
+	FILE *FB = fopen(B, "wb");
 	fwrite(buff, 1, st.st_size, FB);
 
 	fclose(FA); fclose(FB);
