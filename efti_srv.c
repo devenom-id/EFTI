@@ -145,10 +145,6 @@ void *server_handle(void* conn) { /*server's core*/
 				break;
 			}
 			case 2: {/*send (I'll send you, you receive)*/
-				/*
-				 * sd.content tendrá "2000xn/home/darth/file"
-				 */
-				;
 				FILE *fn = fopen(sd.content, "rb");
 				struct stat st; stat(sd.content, &st);
 				char *buffer = malloc(st.st_size);
@@ -223,8 +219,28 @@ void *server_handle(void* conn) { /*server's core*/
 				write(fd, hstr.str, hstr.size);
 				break;
 			}
+			case 6: { /*move*/
+				;
+				break;
+			}
+			case 7: { /*copy*/
+				;
+				break;
+			}
+			case 8: { /*delete*/
+				;
+				break;
+			}
+			case 9: { /*new file*/
+				;
+				break;
+			}
+			case 10: { /*new dir*/
+				;
+				break;
+			}
 			case 0: /*disconnected*/
-			case 6: /*disconnect*/
+			case 11: /*disconnect*/
 				if (sd.content) free(sd.content);
 				close(fd);
 				return 0;

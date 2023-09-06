@@ -126,6 +126,7 @@ int list(struct TabList *tl, int dotfiles) {
 		wobj->ls = vec.str;
 		answ = get_answ(fd); // Attrs
 		wobj->attrls = answ.content;
+		alph_sort(wobj, vec.size);
 		return vec.size;
 	}
 	int size = 0;
@@ -140,16 +141,25 @@ int list(struct TabList *tl, int dotfiles) {
 		(*ls)[size] = s;
 		size++;
 	}
+	alph_sort(wobj, size);
 	return size;
 }
 
-void alph_sort(char** ls, int size) {
+void alph_sort(struct Wobj* wobj, int size) {
+	char** ls = wobj->ls;
+	char* attrls = wobj->attrls;
+	int local = wobj->local;
 	for (int i=0; i<size-1; i++) {
 		for (int e=0; e<size-1-i; e++) {
 			if (strcmp(ls[e],ls[e+1]) > 0) {
 				char* temp = ls[e];
 				ls[e] = ls[e+1];
 				ls[e+1] = temp;
+				if (!local) {
+					char c = attrls[e];
+					attrls[e] = attrls[e+1];
+					attrls[e+1] = c;
+				}
 			}
 		}
 	}
@@ -433,6 +443,7 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 	char* pwd = wobj->pwd;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
 	if (W_ISDIR(wobj, wobj->data->ptrs[1], path)) {dir_cd(&pwd, name);wobj->pwd=pwd;}
+	// TODO IF NOT LOCAL OPEN VIM IN READONLY
 	else {
 		endwin();
 		int pid = fork();
@@ -666,9 +677,11 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 			FILE *Tmp = fopen(param, "wb");
 			fwrite(svd.content, 1, svd.size, Tmp);
 			fclose(Tmp);
+			free(svd.content);
 		}
 		close(0);close(1);close(2);
 		execlp("feh", "feh", param, NULL);
+		if (!local) remove(param);
 		exit(1);
 	}
 	wait(NULL);

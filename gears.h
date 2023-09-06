@@ -84,7 +84,7 @@ void uptime(char* buff);
 void dir_up(char **pwd);
 void dir_cd(char **pwd, char *dir);
 int list(struct TabList *tl, int dotfiles);
-void alph_sort(char** ls, int size);
+void alph_sort(struct Wobj* wobj, int size);
 void pr_ls(char **ls, int size);
 void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode);
 int W_ISDIR(struct Wobj *wobj, int index, const char* f);

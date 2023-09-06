@@ -107,7 +107,7 @@ int main() {
 			free(wobj->ls); wobj->ls=NULL;
 		}
 		int size = list(&tl, fdata->dotfiles);
-		alph_sort(wobj->ls, size);
+		/*alph_sort(wobj->ls, size); TODO REMOVE*/
 
 		int (*func[size])(struct TabList*, struct Data*,void*);void* args[size];
 		char **ls = wobj->ls;
