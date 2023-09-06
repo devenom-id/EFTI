@@ -441,9 +441,9 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 	struct Wobj* wobj = get_current_tab(tl);
 	char* name = (char*)f;
 	char* pwd = wobj->pwd;
+	int local = wobj->local;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
 	if (W_ISDIR(wobj, wobj->data->ptrs[1], path)) {dir_cd(&pwd, name);wobj->pwd=pwd;}
-	// TODO IF NOT LOCAL OPEN VIM IN READONLY
 	else {
 		endwin();
 		int pid = fork();
@@ -451,8 +451,17 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 			char *cpy = malloc(strlen(pwd)+strlen(name)+1);handleMemError(cpy, "malloc(2) on handleFile");
 			strcpy(cpy, pwd);
 			strcat(cpy, name);
-			cpy[strlen(pwd)+strlen(name)] = 0;
-			char *argv[] = {"/usr/bin/nvim", cpy, NULL};
+			if (!local) {
+				struct Srvdata svd = high_GetFileData(wobj->fd, cpy);
+				free(cpy);
+				cpy = high_GetTempFile(name);
+				FILE *Tmp = fopen(cpy, "wb");
+				fwrite(svd.content, 1, svd.size, Tmp);
+				fclose(Tmp);
+				free(svd.content);
+			}
+			char *argv[] = {"/usr/bin/nvim", cpy, NULL, NULL};
+			if (!local) {argv[2] = "-R";}
 			execvp("nvim", argv);
 			exit(1);
 		}
