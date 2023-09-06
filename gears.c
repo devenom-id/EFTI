@@ -432,9 +432,7 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 	char* name = (char*)f;
 	char* pwd = wobj->pwd;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
-	struct stat st;
-	stat(path, &st);
-	if (S_ISDIR(st.st_mode)) {dir_cd(&pwd, name);wobj->pwd=pwd;}
+	if (W_ISDIR(wobj, wobj->data->ptrs[1], path)) {dir_cd(&pwd, name);wobj->pwd=pwd;}
 	else {
 		endwin();
 		int pid = fork();
@@ -459,9 +457,7 @@ int execute(struct TabList *tl, struct Data *data, char* file) {
 	char *pwd = wobj->pwd;
 	char*path = malloc(strlen(pwd)+strlen(file)+1);handleMemError(path, "malloc(2) on execute");
 	strcpy(path,pwd);strcat(path,file);
-	struct stat st;
-	stat(path, &st);
-	if (!S_ISDIR(st.st_mode) && st.st_mode & S_IXUSR) {
+	if (!W_ISDIR(wobj, wobj->data->ptrs[1], path) && W_ISEXEC(wobj, wobj->data->ptrs[1], path)) {
 		endwin();
 		int PID = fork();
 		if (!PID) {
@@ -533,9 +529,7 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 	/*execution process begins*/
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 
-	struct stat st;
-	stat(path, &st);
-	if (!S_ISDIR(st.st_mode) && st.st_mode & S_IXUSR) {  /*If it's not dir and is executable*/
+	if (!W_ISDIR(wobj, wobj->data->ptrs[1], path) && W_ISEXEC(wobj, wobj->data->ptrs[1], path)) {  /*If it's not dir and is executable*/
 		/*prepare argument vector*/
 		struct vector str;
 		if (buff!=NULL && strlen(buff)) str = string_split(buff, ' ');
@@ -784,10 +778,11 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 	return 1;
 }
 
-void copy(char *A, char *B) {
+void copy(struct Wobj* wobj, char *A, char *B) {
+	// TODO local send order to copy
 	struct stat st;
 	stat(A, &st);
-	if S_ISDIR(st.st_mode) return;
+	if (S_ISDIR(st.st_mode)) return;
 	FILE *FA = fopen(A, "rb");
 	char *buff = malloc(st.st_size);handleMemError(buff, "malloc(2) on copy");
 	fread(buff, 1, st.st_size, FA);
@@ -816,7 +811,7 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	reverse(s);
 	char *path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fcopy");
 	(void) strcpy(path,pwd); (void)strcat(path,s);
-	(void) copy(spath,path);
+	(void) copy(wobj,spath,path);
 	
 	(void) free(fdata->tmp_path);
 	fdata->tmp_path = NULL;
