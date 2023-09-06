@@ -112,7 +112,7 @@ int list(struct TabList *tl, int dotfiles) {
 		int size = strlen(pwd);
 		int digits = enumdig(size);
 		char *strsz = calloc(digits+1,1); snprintf(strsz, digits+1, "%d", size);
-		struct string str;
+		struct string str; string_init(&str);
 		string_addch(&str, '4');
 		string_add(&str, itodg(digits));
 		string_add(&str, strsz);
