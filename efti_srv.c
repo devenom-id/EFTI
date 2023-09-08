@@ -195,8 +195,8 @@ void *server_handle(void* conn) { /*server's core*/
 				string_add(&hstr, files_size_digit);
 				string_add(&hstr, files_size);
 				string_add(&hstr, files.str);
-				char *attr_size = calloc(attrs.size+1,1);
-				snprintf(attr_size, attrs.size+1, "%d", attrs.size);
+				char *attr_size = calloc(attrs.size+2,1);
+				snprintf(attr_size, attrs.size+2, "%d", attrs.size);
 				char *attr_digit = itodg(enumdig(attrs.size));
 				string_add(&hstr, attr_digit);
 				string_add(&hstr, attr_size);
@@ -219,24 +219,38 @@ void *server_handle(void* conn) { /*server's core*/
 				write(fd, hstr.str, hstr.size);
 				break;
 			}
-			case 6: { /*move*/
-				;
+			case 6: { /*rename or move*/
+				char *A, *B;
+				A = sd.content;
+				sd = get_answ(fd);
+				B = sd.content;
+				rename(A, B);
+				free(A);
 				break;
 			}
 			case 7: { /*copy*/
-				;
+				char *A, *B;
+				A = sd.content;
+				sd = get_answ(fd);
+				B = sd.content;
+				copy(NULL, A, B);
+				free(A);
 				break;
 			}
 			case 8: { /*delete*/
-				;
+				remove(sd.content);
 				break;
 			}
 			case 9: { /*new file*/
-				;
+				struct stat st;
+				if (stat(sd.content, &st) != -1) break;
+				close(open(sd.content, O_WRONLY | O_CREAT));
 				break;
 			}
 			case 10: { /*new dir*/
-				;
+				struct stat st;
+				if (stat(sd.content, &st) != -1) break;
+				mkdir(sd.content, 0700);
 				break;
 			}
 			case 0: /*disconnected*/

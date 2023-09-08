@@ -66,6 +66,7 @@ char *itodg(int dig) {
 }
 
 int enumdig(int n) {
+	if (!n) return 1;
 	int d = 0;
 	while (n) {n/=10;d++;}
 	return d;
@@ -589,12 +590,14 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 
 char* getExtension(char* file) {
 	char *s=NULL; int size = 0;
+	int f=0;
 	for (int i=strlen(file)-1; i>=0; i--) {
 		s = realloc(s, size+1);handleMemError(s, "realloc(2) on isImg");
 		s[size] = file[i];
-		if (file[i] == '.') {size++;break;}
+		if (file[i] == '.') {f=1;size++;break;}
 		size++;
 	}
+	if (!f) {if (s) free(s); return NULL;}
 	s=realloc(s,size+1);handleMemError(s, "realloc(2) on isImg");
 	s[size]=0;
 	reverse(s);
@@ -604,6 +607,7 @@ char* getExtension(char* file) {
 int isImg(char* file) {
 	if (!file) return 1;
 	char* s = getExtension(file);
+	if (!s) return 0;
 	if (!strcmp(s, ".png") || !strcmp(s, ".jpg")) {free(s);return 1;}
 	free(s);
 	return 0;
@@ -614,7 +618,7 @@ void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
 	// order - dig - size - cont
 	// TODO check if size of size[] can be adjusted later to something better
 	char sz[11]; snprintf(sz, 11, "%lu", size);
-	string_addch(&hstr, order+48);
+	if (order != -1) string_addch(&hstr, order+48);
 	string_add(&hstr, itodg(dig));
 	string_add(&hstr, sz);
 	string_add(&hstr, param);
@@ -652,12 +656,13 @@ char* high_GetTempFile(char *file) {
 	increase_max_tmp(tmp);
 	free(buff);
 	char *extension = getExtension(file);
-	buff = calloc(10+enumdig(tmp)+strlen(extension)+1, 1);
+	int extension_size = (extension) ? strlen(extension) : 0;
+	buff = calloc(10+enumdig(tmp)+extension_size+1, 1);
 	char* size = calloc(enumdig(tmp)+1, 1);
 	snprintf(size, enumdig(tmp)+1, "%d", tmp);
 	strcpy(buff, "/tmp/efti/");
 	strcat(buff, size);
-	strcat(buff, extension);
+	if (extension) strcat(buff, extension);
 	return buff;
 }
 
@@ -710,7 +715,9 @@ int menu_close(struct TabList *tl, struct Data *data, void* args) {return 0;}
 int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
 	struct Wobj *wobj = get_current_tab(tl);
+	int fd = wobj->fd;
 	char *pwd = wobj->pwd;
+	int local = wobj->local;
 	WINDOW* stdscr = data->wins[0];
 	int y,x; getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
@@ -729,7 +736,12 @@ int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	char *B = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(B, "malloc(2) on fileRename");
 	strcpy(A, pwd); strcat(A, file);
 	strcpy(B, pwd); strcat(B, buff);
-	rename(A, B);
+	if (local) {rename(A, B);}
+	else {
+		int A_sz = strlen(A); int B_sz = strlen(B);
+		high_SendOrder(fd, 6, enumdig(A_sz), A_sz, A);
+		high_SendOrder(fd, -1, enumdig(B_sz), B_sz, B);
+	}
 	free(buff); free(A); free(B);
 	return 1;
 }
@@ -759,6 +771,8 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 	if (fdata->tmp_path==NULL) return 1;
 	char* pwd = wobj->pwd;
 	char* spath = fdata->tmp_path;
+	int local = wobj->local;
+	int fd = wobj->fd;
 
 	WINDOW* stdscr = data->wins[0];
 	int y,x; getmaxyx(stdscr, y, x);
@@ -783,10 +797,11 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 		reverse(s);
 		char* path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fmove");
 		strcpy(path, pwd);strcat(path, s);
-		if (rename(spath, path) == -1) {
-			endwin();
-			perror("Rename");
-			exit(1);
+		if (local) {int r = rename(spath, path); handleError(r, -1, "rename");}
+		else {
+			int spath_sz = strlen(spath); int path_sz = strlen(path);
+			high_SendOrder(fd, 6, enumdig(spath_sz), spath_sz, spath);
+			high_SendOrder(fd, -1, enumdig(path_sz), path_sz, path);
 		}
 		free(s); free(path);
 
@@ -823,6 +838,8 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	char *pwd = wobj->pwd;
 	char *spath = fdata->tmp_path;
 	char *s=NULL; int size = 0;
+	int local = wobj->local;
+	int fd = wobj->fd;
 	for (int i=strlen(spath)-1; i>=0; i--) {
 		s = realloc(s, size+1);handleMemError(s, "realloc(2) on fcopy");
 		if (spath[i] == '/') {break;}
@@ -832,15 +849,20 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	s=realloc(s,size+1);handleMemError(s, "realloc(2) on fcopy");s[size]=0;
 	reverse(s);
 	char *path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fcopy");
-	(void) strcpy(path,pwd); (void)strcat(path,s);
-	(void) copy(wobj,spath,path);
+	strcpy(path,pwd); strcat(path,s);
+	if (local) {copy(wobj,spath,path);}
+	else {
+		int spath_sz = strlen(spath); int path_sz = strlen(path);
+		high_SendOrder(fd, 7, enumdig(spath_sz), spath_sz, spath);
+		high_SendOrder(fd, -1, enumdig(path_sz), path_sz, path);
+	}
 	
-	(void) free(fdata->tmp_path);
+	free(fdata->tmp_path);
 	fdata->tmp_path = NULL;
 
 	mvwaddstr(data->wins[1],0, 2, " ");
 	wrefresh(data->wins[1]);
-	(void) free(s); (void)free(path);
+	free(s); free(path);
 	return 1;
 }
 
@@ -849,6 +871,8 @@ int fdelete(struct TabList *tl, struct Data *data, char* file) {
 
 	struct Wobj *wobj = get_current_tab(tl);
 	WINDOW* stdscr = data->wins[0];
+	int local = wobj->local;
+	int fd = wobj->fd;
 	int y,x; (void)getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(4, 40, y/2-2, x/2-15);
 	wbkgd(win, COLOR_PAIR(1));
@@ -863,7 +887,11 @@ int fdelete(struct TabList *tl, struct Data *data, char* file) {
 		char *pwd = wobj->pwd;
 		char *path = malloc(strlen(pwd)+strlen(file)+1);handleMemError(path, "malloc(2) on fdelete");
 		(void) strcpy(path, pwd); (void) strcat(path, file);
-		_= remove(path); handleError(_, -1, "fdelete: remove");
+		if (local) {_= remove(path); handleError(_, -1, "fdelete: remove");}
+		else {
+			int path_sz = strlen(path);
+			high_SendOrder(fd, 8, enumdig(path_sz), path_sz, path);
+		}
 		(void) free(path);
 	}
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
@@ -874,6 +902,8 @@ int fnew(struct TabList *tl, struct Data *data, char* file) {
 	struct Wobj *wobj = get_current_tab(tl);
 	char *pwd = wobj->pwd;
 	WINDOW* stdscr = data->wins[0];
+	int local = wobj->local;
+	int fd = wobj->fd;
 	int y,x; getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
 	wbkgd(win, COLOR_PAIR(1));
@@ -889,9 +919,15 @@ int fnew(struct TabList *tl, struct Data *data, char* file) {
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(path, "malloc(2) on fnew");
 	(void) strcpy(path,pwd); (void)strcat(path, buff);
-	struct stat st;
-	if (stat(path, &st) != -1) return 1;
-	FILE *F = fopen(path, "w"); (void)fclose(F);
+	if (local) {
+		struct stat st;
+		if (stat(path, &st) != -1) return 1;
+		FILE *F = fopen(path, "w"); (void)fclose(F);
+	}
+	else {
+		int path_sz = strlen(path);
+		high_SendOrder(fd, 9, enumdig(path_sz), path_sz, path);
+	}
 	(void) free(path);
 	return 1;
 }
@@ -899,6 +935,8 @@ int fnew(struct TabList *tl, struct Data *data, char* file) {
 int dnew(struct TabList *tl, struct Data *data, char* file) {
 	struct Wobj *wobj = get_current_tab(tl);
 	char *pwd = wobj->pwd;
+	int local = wobj->local;
+	int fd = wobj->fd;
 	WINDOW* stdscr = data->wins[0];
 	int y,x; (void) getmaxyx(stdscr, y, x);
 	WINDOW* win = newwin(3, 30, y/2-5, x/2-15);
@@ -915,9 +953,15 @@ int dnew(struct TabList *tl, struct Data *data, char* file) {
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(path, "malloc(2) on dnew");
 	(void) strcpy(path, pwd); (void)strcat(path, buff);
-	struct stat st;
-	if (stat(path, &st) != -1) return 1;
-	_= mkdir(path, 0700); handleError(_,-1,"dnew: mkdir");
+	if (local) {
+		struct stat st;
+		if (stat(path, &st) != -1) return 1;
+		_= mkdir(path, 0700); handleError(_,-1,"dnew: mkdir");
+	}
+	else {
+		int path_sz = strlen(path);
+		high_SendOrder(fd, 10, enumdig(path_sz), path_sz, path);
+	}
 	(void) free(path);
 	return 1;
 }

@@ -106,6 +106,7 @@ int menu_close(struct TabList *tl, struct Data *data, void* args);
 int fileRename(struct TabList *tl, struct Data *data, char* file);
 int fselect(struct TabList *tl, struct Data *data, char* file);
 int fmove(struct TabList *tl, struct Data *data, char* file);
+void copy(struct Wobj* wobj, char *A, char *B);
 int fcopy(struct TabList *tl, struct Data *data, char* file);
 int fdelete(struct TabList *tl, struct Data *data, char* file);
 int fnew(struct TabList *tl, struct Data *data, char* file);
