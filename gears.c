@@ -457,7 +457,7 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 				free(cpy);
 				cpy = high_GetTempFile(name);
 				FILE *Tmp = fopen(cpy, "wb");
-				fwrite(svd.content, 1, svd.size, Tmp);
+				if (svd.size) fwrite(svd.content, 1, svd.size, Tmp);
 				fclose(Tmp);
 				free(svd.content);
 			}
