@@ -8,7 +8,6 @@ struct Nopt {
 };
 struct Fopt {
 	int dotfiles;
-	char* tmp_path;
 };
 struct Data {
 	void* data;
@@ -43,7 +42,12 @@ struct Wobj {
 	char** ls;
 	char* attrls;
 };
+struct Tmp_path {
+	char* path;
+	int id;
+};
 struct TabList {
+	struct Tmp_path tmp_path;
 	char *list;
 	int point;
 	int size;

@@ -628,7 +628,7 @@ void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
 
 struct Srvdata high_GetFileData(int fd, char* path) {
 	int size = strlen(path);
-	high_SendOrder(fd, 2, enumdig(size), size, path);
+	high_SendOrder(fd, OP_DOWNLOAD, enumdig(size), size, path);
 	return get_fdata(fd);
 }
 
@@ -739,7 +739,7 @@ int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	if (local) {rename(A, B);}
 	else {
 		int A_sz = strlen(A); int B_sz = strlen(B);
-		high_SendOrder(fd, 6, enumdig(A_sz), A_sz, A);
+		high_SendOrder(fd, OP_MOVE, enumdig(A_sz), A_sz, A);
 		high_SendOrder(fd, -1, enumdig(B_sz), B_sz, B);
 	}
 	free(buff); free(A); free(B);
@@ -750,15 +750,16 @@ int fselect(struct TabList *tl, struct Data *data, char* file) {
 	if (!file) return 1;
 	struct Wobj *wobj = get_current_tab(tl);
 	char *pwd=wobj->pwd;
-	struct Fopt *fdata = (struct Fopt*)data->data;
-	if (fdata->tmp_path==NULL) {
+	if (tl->tmp_path.path==NULL) {
 		char *path = malloc(strlen(pwd)+strlen(file)+1);handleMemError(path, "malloc(2) on fselect");
 		strcpy(path, pwd); strcat(path, file);
-		fdata->tmp_path = path;
+		tl->tmp_path.path = path;
+		tl->tmp_path.id = tl->point;
 		mvwaddwstr(data->wins[1],0, 2, L"");
 	} else {
-		free(fdata->tmp_path);
-		fdata->tmp_path=NULL;
+		free(tl->tmp_path.path);
+		tl->tmp_path.path=NULL;
+		tl->tmp_path.id = 0;
 		mvwaddstr(data->wins[1],0, 2, " ");
 	}
 	wrefresh(data->wins[1]);
@@ -767,10 +768,9 @@ int fselect(struct TabList *tl, struct Data *data, char* file) {
 
 int fmove(struct TabList *tl, struct Data *data, char* file) {
 	struct Wobj *wobj = get_current_tab(tl);
-	struct Fopt *fdata = (struct Fopt*)data->data;
-	if (fdata->tmp_path==NULL) return 1;
+	if (tl->tmp_path.path==NULL) return 1;
 	char* pwd = wobj->pwd;
-	char* spath = fdata->tmp_path;
+	char* spath = tl->tmp_path.path;
 	int local = wobj->local;
 	int fd = wobj->fd;
 
@@ -797,16 +797,36 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 		reverse(s);
 		char* path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fmove");
 		strcpy(path, pwd);strcat(path, s);
-		if (local) {int r = rename(spath, path); handleError(r, -1, "rename");}
+
+		if (tl->point != tl->tmp_path.id) {
+			/*transferencia*/
+			/*!tl->point
+			 * !tl->tmp_path.id
+			 * tl->point && tl->tmp_path.id*/
+			int spath_sz = strlen(spath); int path_sz = strlen(path);
+			if (tl->tmp_path.id) {
+			} else {
+				struct stat st; stat(spath, &st);
+				FILE *FN = fopen(spath, "rb");
+				char *buffer = malloc(st.st_size); 
+				fread(buffer, 1, st.st_size, FN);
+				fclose(FN);
+				high_SendOrder(fd, OP_UPLOAD, enumdig(spath_sz), spath_sz, spath);
+				high_SendOrder(fd, -1, enumdig(st.st_size), st.st_size, buffer);
+				free(buffer);
+				high_SendOrder(fd, OP_DELETE, enumdig(spath_sz), spath_sz, spath);
+			}
+		}
+		else if (local) {int r = rename(spath, path); handleError(r, -1, "rename");}
 		else {
 			int spath_sz = strlen(spath); int path_sz = strlen(path);
-			high_SendOrder(fd, 6, enumdig(spath_sz), spath_sz, spath);
+			high_SendOrder(fd, OP_MOVE, enumdig(spath_sz), spath_sz, spath);
 			high_SendOrder(fd, -1, enumdig(path_sz), path_sz, path);
 		}
 		free(s); free(path);
 
-		free(fdata->tmp_path);
-		fdata->tmp_path=NULL;
+		free(tl->tmp_path.path);
+		tl->tmp_path.path=NULL;
 
 		mvwaddstr(data->wins[1],0, 2, " ");
 		wrefresh(data->wins[1]);
@@ -833,10 +853,9 @@ void copy(struct Wobj* wobj, char *A, char *B) {
 
 int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	struct Wobj *wobj = get_current_tab(tl);
-	struct Fopt*fdata = (struct Fopt*)data->data;
-	if (fdata->tmp_path==NULL) return 1;
+	if (tl->tmp_path.path==NULL) return 1;
 	char *pwd = wobj->pwd;
-	char *spath = fdata->tmp_path;
+	char *spath = tl->tmp_path.path;
 	char *s=NULL; int size = 0;
 	int local = wobj->local;
 	int fd = wobj->fd;
@@ -853,12 +872,12 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	if (local) {copy(wobj,spath,path);}
 	else {
 		int spath_sz = strlen(spath); int path_sz = strlen(path);
-		high_SendOrder(fd, 7, enumdig(spath_sz), spath_sz, spath);
+		high_SendOrder(fd, OP_COPY, enumdig(spath_sz), spath_sz, spath);
 		high_SendOrder(fd, -1, enumdig(path_sz), path_sz, path);
 	}
 	
-	free(fdata->tmp_path);
-	fdata->tmp_path = NULL;
+	free(tl->tmp_path.path);
+	tl->tmp_path.path = NULL;
 
 	mvwaddstr(data->wins[1],0, 2, " ");
 	wrefresh(data->wins[1]);
@@ -890,7 +909,7 @@ int fdelete(struct TabList *tl, struct Data *data, char* file) {
 		if (local) {_= remove(path); handleError(_, -1, "fdelete: remove");}
 		else {
 			int path_sz = strlen(path);
-			high_SendOrder(fd, 8, enumdig(path_sz), path_sz, path);
+			high_SendOrder(fd, OP_DELETE, enumdig(path_sz), path_sz, path);
 		}
 		(void) free(path);
 	}
@@ -926,7 +945,7 @@ int fnew(struct TabList *tl, struct Data *data, char* file) {
 	}
 	else {
 		int path_sz = strlen(path);
-		high_SendOrder(fd, 9, enumdig(path_sz), path_sz, path);
+		high_SendOrder(fd, OP_NEW_FILE, enumdig(path_sz), path_sz, path);
 	}
 	(void) free(path);
 	return 1;
@@ -960,7 +979,7 @@ int dnew(struct TabList *tl, struct Data *data, char* file) {
 	}
 	else {
 		int path_sz = strlen(path);
-		high_SendOrder(fd, 10, enumdig(path_sz), path_sz, path);
+		high_SendOrder(fd, OP_NEW_DIR, enumdig(path_sz), path_sz, path);
 	}
 	(void) free(path);
 	return 1;

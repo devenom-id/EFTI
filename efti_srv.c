@@ -139,12 +139,12 @@ void *server_handle(void* conn) { /*server's core*/
 			sd = get_answ(fd);
 		}
 		switch (order) {
-			case 1: { /*ping (Can be used to disconnect for inactivity)*/
+			case OP_PING: { /*Can be used to disconnect for inactivity*/
 				char tmpbf[1] = {1};
 				write(fd, tmpbf, 1);
 				break;
 			}
-			case 2: {/*send (I'll send you, you receive)*/
+			case OP_DOWNLOAD: {
 				FILE *fn = fopen(sd.content, "rb");
 				struct stat st; stat(sd.content, &st);
 				char *buffer = malloc(st.st_size);
@@ -164,9 +164,11 @@ void *server_handle(void* conn) { /*server's core*/
 				string_free(&ts);
 				break;
 			}
-			case 3: /*download (I'll download this file)*/
+			case OP_UPLOAD: {
+				;
 				break;
-			case 4: { /*list files*/
+			}
+			case OP_LIST_FILES: {
 				DIR *dir = opendir(sd.content);
 				int path_size = sd.size;
 				char *path=calloc(sd.size+1,1); strcpy(path, sd.content);
@@ -206,7 +208,7 @@ void *server_handle(void* conn) { /*server's core*/
 				closedir(dir);
 				break;
 			}
-			case 5: { /*get home*/
+			case OP_GET_HOME: {
 				char *home = getenv("HOME");
 				char *size = calloc(enumdig(strlen(home))+1+1,1); /*+/ +\0*/ handleMemError(size, "calloc(2) on server_handle");
 				sprintf(size, "%lu", strlen(home)+1);
@@ -219,7 +221,7 @@ void *server_handle(void* conn) { /*server's core*/
 				write(fd, hstr.str, hstr.size);
 				break;
 			}
-			case 6: { /*rename or move*/
+			case OP_MOVE: { /*rename or move*/
 				char *A, *B;
 				A = sd.content;
 				sd = get_answ(fd);
@@ -228,7 +230,7 @@ void *server_handle(void* conn) { /*server's core*/
 				free(A);
 				break;
 			}
-			case 7: { /*copy*/
+			case OP_COPY: {
 				char *A, *B;
 				A = sd.content;
 				sd = get_answ(fd);
@@ -237,24 +239,24 @@ void *server_handle(void* conn) { /*server's core*/
 				free(A);
 				break;
 			}
-			case 8: { /*delete*/
+			case OP_DELETE: {
 				remove(sd.content);
 				break;
 			}
-			case 9: { /*new file*/
+			case OP_NEW_FILE: {
 				struct stat st;
 				if (stat(sd.content, &st) != -1) break;
 				close(open(sd.content, O_WRONLY | O_CREAT));
 				break;
 			}
-			case 10: { /*new dir*/
+			case OP_NEW_DIR: {
 				struct stat st;
 				if (stat(sd.content, &st) != -1) break;
 				mkdir(sd.content, 0700);
 				break;
 			}
 			case 0: /*disconnected*/
-			case 11: /*disconnect*/
+			case OP_DISCONNECT:
 				if (sd.content) free(sd.content);
 				close(fd);
 				return 0;
@@ -345,7 +347,8 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	add_tab(tabwin, tl);
 	tl->wobj[tl->size-1].data = malloc(sizeof(struct Data));
 	struct Fopt *fopt = malloc(sizeof(struct Fopt));
-	fopt->tmp_path = NULL; fopt->dotfiles=0;
+	fopt->dotfiles=0;
+	tl->tmp_path.path = NULL;
 	tl->wobj[tl->size-1].data->data = fopt;
 	tl->wobj[tl->size-1].data->wins_size = tl->wobj[0].data->wins_size;
 	tl->wobj[tl->size-1].data->wins = tl->wobj[0].data->wins;

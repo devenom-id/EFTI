@@ -6,6 +6,8 @@ struct Srvdata {
 	char *content;
 };
 enum FileAttr {FA_DIR=1, FA_EXEC=2};
+enum ServerOrder {OP_PING=1, OP_DOWNLOAD, OP_UPLOAD, OP_LIST_FILES, OP_GET_HOME,
+	OP_MOVE, OP_COPY, OP_DELETE, OP_NEW_FILE, OP_NEW_DIR, OP_DISCONNECT};
 typedef int (*bindFunc)(struct TabList*, struct Data*, char *);
 int client_connect(struct TabList *tl, struct Data *data, char* file);
 /* connect debe crear una conexión a un servidor remoto.

@@ -75,7 +75,7 @@ int main() {
 						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs, client_connect, b_tab_switch};
 	bind.keys = keys; bind.func = binfunc; bind.nmemb=15;
 
-	struct Data data; struct Fopt fdata; fdata.dotfiles=0; fdata.tmp_path=NULL; data.data=&fdata;
+	struct Data data; struct Fopt fdata; fdata.dotfiles=0; data.data=&fdata;
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 6;
 
@@ -87,6 +87,7 @@ int main() {
 	wobj[0].pwd=pwd;
 	wobj[0].ls = NULL;
 	tl.wobj=wobj;
+	tl.tmp_path.path=NULL;
 
 	for (;;) {
 		struct Wobj *wobj = get_current_tab(&tl);
