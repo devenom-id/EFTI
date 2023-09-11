@@ -798,14 +798,18 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 		char* path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fmove");
 		strcpy(path, pwd);strcat(path, s);
 
-		if (tl->point != tl->tmp_path.id) {
-			/*transferencia*/
-			/*!tl->point
-			 * !tl->tmp_path.id
-			 * tl->point && tl->tmp_path.id*/
+		if (tl->point != tl->tmp_path.id) {  // if trying to move to a different device
 			int spath_sz = strlen(spath); int path_sz = strlen(path);
-			if (tl->tmp_path.id) {
-			} else {
+			if (tl->tmp_path.id && wobj->local) { // remote to local
+				high_SendOrder(fd, OP_DOWNLOAD, enumdig(spath_sz), spath_sz, spath);
+				struct Srvdata sd = get_answ(fd);
+				FILE *FN = fopen(sd.content, "wb");  // TODO SD.CONTENT IS NOT AN ABSOLUTE PATH FOR THE ACTUAL WORKING DIR, CHANGE IT
+				free(sd.content);
+				sd = get_fdata(fd);
+				fclose(FN);
+				high_SendOrder(fd, OP_DELETE, enumdig(spath_sz), spath_sz, spath);
+			}
+			else if (!tl->tmp_path.id && !wobj->local) { // local to remote
 				struct stat st; stat(spath, &st);
 				FILE *FN = fopen(spath, "rb");
 				char *buffer = malloc(st.st_size); 
@@ -815,6 +819,8 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 				high_SendOrder(fd, -1, enumdig(st.st_size), st.st_size, buffer);
 				free(buffer);
 				high_SendOrder(fd, OP_DELETE, enumdig(spath_sz), spath_sz, spath);
+			}
+			else { // remote to remote
 			}
 		}
 		else if (local) {int r = rename(spath, path); handleError(r, -1, "rename");}
