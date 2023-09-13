@@ -120,6 +120,7 @@ struct Srvdata get_fdata(int fd) {
 		int r = read(fd, fdata, size); /*content*/
 		fdata += r;
 		p += r;
+		size -= r;
 	}
 	fdata -= size;
 	sd.content=fdata;
