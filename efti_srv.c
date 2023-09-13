@@ -165,7 +165,12 @@ void *server_handle(void* conn) { /*server's core*/
 				break;
 			}
 			case OP_UPLOAD: {
-				;
+				char *path = sd.content;
+				FILE *FN = fopen(path, "wb");
+				sd = get_fdata(fd);
+				fwrite(sd.content, 1, sd.size, FN);
+				fclose(FN);
+				free(path);
 				break;
 			}
 			case OP_LIST_FILES: {
@@ -282,9 +287,6 @@ void server_kill() { /*kill server if exists*/
 
 char* gethome(int fd) {
 	write(fd, "50000", 5);
-	struct pollfd pfd[1];
-	pfd[0].events=POLLIN; pfd[0].fd=fd;
-	poll(pfd, 1, -1);
 	struct Srvdata sd = get_answ(fd);
 	return sd.content;
 }

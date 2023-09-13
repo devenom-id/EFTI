@@ -618,13 +618,14 @@ void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
 	struct string hstr; string_init(&hstr);
 	// order - dig - size - cont
 	// TODO check if size of size[] can be adjusted later to something better
-	char sz[11]; snprintf(sz, 11, "%lu", size);
+	char *sz = calloc(dig+1, 1); snprintf(sz, 11, "%lu", size);
 	if (order != -1) string_addch(&hstr, order+48);
 	string_add(&hstr, itodg(dig));
 	string_add(&hstr, sz);
-	string_add(&hstr, param);
+	string_nadd(&hstr, size, param);
 	write(fd, hstr.str, hstr.size);
 	string_free(&hstr);
+	free(sz);
 }
 
 struct Srvdata high_GetFileData(int fd, char* path) {
@@ -767,9 +768,10 @@ int fselect(struct TabList *tl, struct Data *data, char* file) {
 	return 1;
 }
 
-void transfer(struct TabList* tl, struct Wobj* wobj, int fd, char* path, char* spath, int rm_after_transf) {
+void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, int rm_after_transf) {
 	int spath_sz = strlen(spath); int path_sz = strlen(path);
 	if (tl->tmp_path.id && wobj->local) { // remote to local
+		int fd = tl->wobj[tl->tmp_path.id].fd;
 		high_SendOrder(fd, OP_DOWNLOAD, enumdig(spath_sz), spath_sz, spath);
 		FILE *FN = fopen(path, "wb");
 		struct Srvdata sd = get_fdata(fd);
@@ -778,15 +780,16 @@ void transfer(struct TabList* tl, struct Wobj* wobj, int fd, char* path, char* s
 		if (rm_after_transf) high_SendOrder(fd, OP_DELETE, enumdig(spath_sz), spath_sz, spath);
 	}
 	else if (!tl->tmp_path.id && !wobj->local) { // local to remote
+		int fd = wobj->fd;
 		struct stat st; stat(spath, &st);
 		FILE *FN = fopen(spath, "rb");
 		char *buffer = malloc(st.st_size); 
 		fread(buffer, 1, st.st_size, FN);
 		fclose(FN);
-		high_SendOrder(fd, OP_UPLOAD, enumdig(spath_sz), spath_sz, spath);
+		high_SendOrder(fd, OP_UPLOAD, enumdig(path_sz), path_sz, path);
 		high_SendOrder(fd, -1, enumdig(st.st_size), st.st_size, buffer);
 		free(buffer);
-		if (rm_after_transf) high_SendOrder(fd, OP_DELETE, enumdig(spath_sz), spath_sz, spath);
+		if (rm_after_transf) remove(spath);
 	}
 	else { // remote to remote
 	}
@@ -798,7 +801,7 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 	char* pwd = wobj->pwd;
 	char* spath = tl->tmp_path.path;
 	int local = wobj->local;
-	int fd = tl->wobj[tl->tmp_path.id].fd;
+	int fd = wobj->fd;
 
 	WINDOW* stdscr = data->wins[0];
 	int y,x; getmaxyx(stdscr, y, x);
@@ -817,7 +820,7 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 		strcpy(path, pwd);strcat(path, s);
 
 		if (tl->point != tl->tmp_path.id) {  // if trying to move to a different device
-			transfer(tl, wobj, fd, path, spath, 1);
+			transfer(tl, wobj, path, spath, 1);
 		}
 		else if (local) {int r = rename(spath, path); handleError(r, -1, "rename");}
 		else {
