@@ -623,7 +623,11 @@ void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
 	string_add(&hstr, itodg(dig));
 	string_add(&hstr, sz);
 	string_nadd(&hstr, size, param);
-	write(fd, hstr.str, hstr.size);
+	int p=0;
+	while (p != hstr.size) {
+		int r = write(fd, hstr.str, hstr.size);
+		p += r;
+	}
 	string_free(&hstr);
 	free(sz);
 }
