@@ -117,10 +117,9 @@ struct Srvdata get_fdata(int fd) {
 	char *fdata = malloc(size); handleMemError(fdata, "calloc(2) on get_answ");
 	int p=0;
 	while (size != p) {
-		int r = read(fd, fdata, size); /*content*/
+		int r = read(fd, fdata, size-r); /*content*/
 		fdata += r;
 		p += r;
-		size -= r;
 	}
 	fdata -= size;
 	sd.content=fdata;
