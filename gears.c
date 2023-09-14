@@ -878,6 +878,9 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	reverse(s);
 	char *path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fcopy");
 	strcpy(path,pwd); strcat(path,s);
+	if (tl->point != tl->tmp_path.id) {  // if trying to move to a different device
+		transfer(tl, wobj, path, spath, 0);
+	}
 	if (local) {copy(wobj,spath,path);}
 	else {
 		int spath_sz = strlen(spath); int path_sz = strlen(path);
