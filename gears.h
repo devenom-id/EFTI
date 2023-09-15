@@ -1,5 +1,6 @@
 #ifndef GEARS_H
 #define GEARS_H
+#define TRANSF_LIMIT 400000000
 #include <curses.h>
 #include <ncurses.h>
 struct Nopt {
@@ -100,7 +101,7 @@ int execute(struct TabList *tl, struct Data *data, char* file);
 int execwargs(struct TabList *tl, struct Data *data, char* file);
 char* getExtension(char* file);
 void high_SendOrder(int fd, int order, int dig, size_t size, char* param);
-struct Srvdata high_GetFileData(int fd, char* path);
+struct Srvdata high_GetFileData(struct TabList* tl, int fd, char* path);
 void increase_max_tmp(int tmp);
 char* high_GetTempFile(char *file);
 int view(struct TabList *tl, struct Data *data, char *file);

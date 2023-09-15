@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <libgen.h>
+#include <fcntl.h>
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -229,19 +230,9 @@ void reverse(char* str) {
 	}
 }
 
-wchar_t *geticon(char* file) {
-	struct stat st;
-	stat(file, &st);
-	if (S_ISDIR(st.st_mode)) return L"";
-	char *s=NULL; int size = 0;
-	for (int i=strlen(file)-1; i>=0; i--) {
-		s = realloc(s, size+1);handleMemError(s, "realloc(2) on geticon");
-		s[size] = file[i];
-		if (file[i] == '.') {size++;break;}
-		size++;
-	}
-	s=realloc(s,size+1); handleMemError(s, "realloc(2) on geticon");s[size]=0;
-	reverse(s);
+wchar_t *geticon(struct Wobj* wobj, char* file) {
+	if (W_ISDIR(wobj, wobj->data->ptrs[1], file)) return L"";
+	char *s=getExtension(file);
 	wchar_t *ico;
 	if (!strcmp(s, ".c")) ico=L" ";
 	else if (!strcmp(s, ".py")) ico=L"󰌠 ";
@@ -301,7 +292,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 				strcpy(path,pwd);
 				strcat(path,ls[i]);
 				nsize = (len<49-2) ?  len: 49-2;
-				mvwaddwstr(win, p, 0, geticon(path));
+				mvwaddwstr(win, p, 0, geticon(wobj, path));
 				mvwaddnstr(win, p, 2, ls[i], nsize);
 				if (W_ISDIR(wobj, i, path)) mvwaddch(win, p, nsize+2, '/');
 				p++;
@@ -314,7 +305,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddwstr(win, ptrs[0], 0, geticon(path));
+			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
@@ -323,7 +314,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = realloc(path, len+strlen(pwd)+1);handleMemError(path, "realloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
-			mvwaddwstr(win, ptrs[0]-1, 0, geticon(path));
+			mvwaddwstr(win, ptrs[0]-1, 0, geticon(wobj, path));
 			mvwaddnstr(win, ptrs[0]-1, 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1]-1, path)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
 			free(path);
@@ -335,7 +326,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddwstr(win, ptrs[0], 0, geticon(path));
+			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
@@ -344,7 +335,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = realloc(path, len+strlen(pwd)+1);handleMemError(path, "realloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
-			mvwaddwstr(win, ptrs[0]+1, 0, geticon(path));
+			mvwaddwstr(win, ptrs[0]+1, 0, geticon(wobj, path));
 			mvwaddnstr(win, ptrs[0]+1, 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1]+1, path)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
 			free(path);
@@ -358,7 +349,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize+2);
 			wattron(win, A_UNDERLINE);
-			mvwaddwstr(win, ptrs[0], 0, geticon(path));
+			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 			free(path);
@@ -454,7 +445,7 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 			strcpy(cpy, pwd);
 			strcat(cpy, name);
 			if (!local) {
-				struct Srvdata svd = high_GetFileData(wobj->fd, cpy);
+				struct Srvdata svd = high_GetFileData(tl, wobj->fd, cpy);
 				free(cpy);
 				cpy = high_GetTempFile(name);
 				FILE *Tmp = fopen(cpy, "wb");
@@ -632,9 +623,16 @@ void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
 	free(sz);
 }
 
-struct Srvdata high_GetFileData(int fd, char* path) {
+struct Srvdata high_GetFileData(struct TabList* tl, int fd, char* path) {
 	int size = strlen(path);
 	high_SendOrder(fd, OP_DOWNLOAD, enumdig(size), size, path);
+	if (!get_err_code(fd)) {
+		WINDOW** w = tl->wobj[0].data->wins;
+		WINDOW* wins[] = {w[0], w[4], w[5]};
+		dialog(wins, "The selected file exceeds the limit of 400MB. Aborted");
+		struct Srvdata sd = {0, NULL};
+		return sd;
+	}
 	return get_fdata(fd);
 }
 
@@ -686,12 +684,20 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 	int local = wobj->local;
 	if (!file) return 1;
 	if (W_ISDIR(wobj, wobj->data->ptrs[1],file) || !isImg(file)) return 1;
+	int filedes[2];
+	pipe(filedes);
+	int flags = fcntl(filedes[0], F_GETFL);
+	fcntl(filedes[0], F_SETFL, flags|O_NONBLOCK);
 	pid_t PID = fork();
 	if (!PID) {
 		char* param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");
 		strcpy(param,pwd);strcat(param,file);
 		if (!local) {
-			struct Srvdata svd = high_GetFileData(wobj->fd, param);
+			struct Srvdata svd = high_GetFileData(tl, wobj->fd, param);
+			if (!svd.size) {
+				write(filedes[1], "\1", 1);
+				exit(1);
+			}
 			free(param);
 			param = high_GetTempFile(file);
 			FILE *Tmp = fopen(param, "wb");
@@ -705,6 +711,13 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 		exit(1);
 	}
 	wait(NULL);
+	char buff[1];
+	int r = read(filedes[0], buff, 1);
+	if (r == -1) { 
+		WINDOW** w = tl->wobj[0].data->wins;
+		WINDOW* wins[] = {w[0], w[4], w[5]};
+		dialog(wins, "The selected file exceeds the limit of 400MB. Aborted");
+	}
 	return 1;
 }
 
@@ -774,9 +787,16 @@ int fselect(struct TabList *tl, struct Data *data, char* file) {
 
 void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, int rm_after_transf) {
 	int spath_sz = strlen(spath); int path_sz = strlen(path);
+	WINDOW** w = tl->wobj[0].data->wins;
+	WINDOW* wins[] = {w[0], w[4], w[5]};
 	if (tl->tmp_path.id && wobj->local) { // remote to local
 		int fd = tl->wobj[tl->tmp_path.id].fd;
 		high_SendOrder(fd, OP_DOWNLOAD, enumdig(spath_sz), spath_sz, spath);
+		//first the success code and then the data
+		if (!get_err_code(fd)) {
+			dialog(wins, "The selected file exceeds the limit of 400MB. Aborted");
+			return;
+		}
 		FILE *FN = fopen(path, "wb");
 		struct Srvdata sd = get_fdata(fd);
 		fwrite(sd.content, 1, sd.size, FN);
@@ -786,6 +806,10 @@ void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, in
 	else if (!tl->tmp_path.id && !wobj->local) { // local to remote
 		int fd = wobj->fd;
 		struct stat st; stat(spath, &st);
+		if (st.st_size > TRANSF_LIMIT) {
+			dialog(wins, "The selected file exceeds the limit of 400MB. Aborted");
+			return;
+		}
 		FILE *FN = fopen(spath, "rb");
 		char *buffer = malloc(st.st_size); 
 		fread(buffer, 1, st.st_size, FN);
@@ -795,7 +819,7 @@ void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, in
 		free(buffer);
 		if (rm_after_transf) remove(spath);
 	}
-	else { // remote to remote
+	else { // TODO remote to remote
 	}
 }
 
@@ -865,23 +889,15 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 	if (tl->tmp_path.path==NULL) return 1;
 	char *pwd = wobj->pwd;
 	char *spath = tl->tmp_path.path;
-	char *s=NULL; int size = 0;
+	char *s=basename(spath);
 	int local = wobj->local;
 	int fd = wobj->fd;
-	for (int i=strlen(spath)-1; i>=0; i--) {
-		s = realloc(s, size+1);handleMemError(s, "realloc(2) on fcopy");
-		if (spath[i] == '/') {break;}
-		s[size] = spath[i];
-		size++;
-	}
-	s=realloc(s,size+1);handleMemError(s, "realloc(2) on fcopy");s[size]=0;
-	reverse(s);
 	char *path = malloc(strlen(pwd)+strlen(s)+1);handleMemError(path, "malloc(2) on fcopy");
 	strcpy(path,pwd); strcat(path,s);
 	if (tl->point != tl->tmp_path.id) {  // if trying to move to a different device
 		transfer(tl, wobj, path, spath, 0);
 	}
-	if (local) {copy(wobj,spath,path);}
+	else if (local) {copy(wobj,spath,path);}
 	else {
 		int spath_sz = strlen(spath); int path_sz = strlen(path);
 		high_SendOrder(fd, OP_COPY, enumdig(spath_sz), spath_sz, spath);

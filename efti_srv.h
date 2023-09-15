@@ -27,6 +27,7 @@ int client_disconnect();
 /* Cierra la conexión al servidor remoto.
  * Destruye el wobj asociado a esa conexión. (del_tab)*/
 void server_main();
+int get_err_code(int fd);
 struct Srvdata get_answ(int fd);
 struct Srvdata get_fdata(int fd);
 void* server_handle(void* conn);

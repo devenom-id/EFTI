@@ -87,6 +87,12 @@ void server_main() { /*server: listen for connections*/
 	}
 }
 
+int get_err_code(int fd) {
+	char buff[1];
+	int r = read(fd, buff, 1);
+	return buff[0]-48;
+}
+
 struct Srvdata get_answ(int fd) {
 	struct Srvdata sd;
 	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
@@ -147,6 +153,15 @@ void *server_handle(void* conn) { /*server's core*/
 			case OP_DOWNLOAD: {
 				FILE *fn = fopen(sd.content, "rb");
 				struct stat st; stat(sd.content, &st);
+				if (st.st_size > TRANSF_LIMIT) {
+					char buff[1]={0};
+					write(fd, buff, 1);
+					break;
+				}
+				else {
+					char buff[1]={1};
+					write(fd, buff, 1);
+				}
 				char *buffer = malloc(st.st_size);
 				int r = fread(buffer, 1, st.st_size, fn);
 				fclose(fn);
