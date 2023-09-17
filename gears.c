@@ -230,8 +230,8 @@ void reverse(char* str) {
 	}
 }
 
-wchar_t *geticon(struct Wobj* wobj, char* file) {
-	if (W_ISDIR(wobj, wobj->data->ptrs[1], file)) return L"";
+wchar_t *geticon(struct Wobj* wobj, int index, char* file) {
+	if (W_ISDIR(wobj, index, file)) return L"";
 	char *s=getExtension(file);
 	if (!s) return L"󰦨 ";
 	wchar_t *ico;
@@ -293,7 +293,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 				strcpy(path,pwd);
 				strcat(path,ls[i]);
 				nsize = (len<49-2) ?  len: 49-2;
-				mvwaddwstr(win, p, 0, geticon(wobj, path));
+				mvwaddwstr(win, p, 0, geticon(wobj, i, path));
 				mvwaddnstr(win, p, 2, ls[i], nsize);
 				if (W_ISDIR(wobj, i, path)) mvwaddch(win, p, nsize+2, '/');
 				p++;
@@ -306,7 +306,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, path));
+			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, ptrs[1], path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
@@ -315,7 +315,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = realloc(path, len+strlen(pwd)+1);handleMemError(path, "realloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]-1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]-1], nsize);
-			mvwaddwstr(win, ptrs[0]-1, 0, geticon(wobj, path));
+			mvwaddwstr(win, ptrs[0]-1, 0, geticon(wobj, ptrs[1]-1, path));
 			mvwaddnstr(win, ptrs[0]-1, 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1]-1, path)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
 			free(path);
@@ -327,7 +327,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = malloc(len+strlen(pwd)+1);handleMemError(path, "malloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]], nsize);
-			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, path));
+			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, ptrs[1], path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 
@@ -336,7 +336,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			path = realloc(path, len+strlen(pwd)+1);handleMemError(path, "realloc(2) on display_files");strcpy(path,pwd);strcat(path,ls[ptrs[1]+1]);
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49);strncpy(str, ls[ptrs[1]+1], nsize);
-			mvwaddwstr(win, ptrs[0]+1, 0, geticon(wobj, path));
+			mvwaddwstr(win, ptrs[0]+1, 0, geticon(wobj, ptrs[1]+1, path));
 			mvwaddnstr(win, ptrs[0]+1, 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1]+1, path)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
 			free(path);
@@ -350,7 +350,7 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			nsize = (len<49-2) ?  len: 49-2;
 			memset(str, ' ', 49-2);strncpy(str, ls[ptrs[1]], nsize+2);
 			wattron(win, A_UNDERLINE);
-			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, path));
+			mvwaddwstr(win, ptrs[0], 0, geticon(wobj, ptrs[1], path));
 			mvwaddnstr(win, ptrs[0], 2, str, nsize);
 			if (W_ISDIR(wobj, ptrs[1], path)) mvwaddch(win, ptrs[0], nsize+2, '/');
 			free(path);
@@ -424,6 +424,7 @@ int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int)) {
 			return res;
 		} else {
 			int index = search_binding(ch, bind);
+			data->ptrs[0] = p; data->ptrs[1] = sp;
 			if (index != -1) {
 				char* param = size ? ls[sp] : NULL;
 				return bind.func[index](tl, data, param);
@@ -686,10 +687,6 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 	int local = wobj->local;
 	if (!file) return 1;
 	if (W_ISDIR(wobj, wobj->data->ptrs[1],file) || !isImg(file)) return 1;
-	int filedes[2];
-	pipe(filedes);
-	int flags = fcntl(filedes[0], F_GETFL);
-	fcntl(filedes[0], F_SETFL, flags|O_NONBLOCK);
 	pid_t PID = fork();
 	if (!PID) {
 		char* param = malloc(strlen(pwd)+strlen(file)+1);handleMemError(param, "malloc(2) on view");
@@ -697,7 +694,6 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 		if (!local) {
 			struct Srvdata svd = high_GetFileData(tl, wobj->fd, param);
 			if (!svd.size) {
-				write(filedes[1], "\1", 1);
 				exit(1);
 			}
 			free(param);
@@ -712,10 +708,9 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 		if (!local) remove(param);
 		exit(1);
 	}
-	wait(NULL);
-	char buff[1];
-	int r = read(filedes[0], buff, 1);
-	if (r == -1) { 
+	int status;
+	waitpid(PID, &status, 0);
+	if (!local && WEXITSTATUS(status)) { 
 		WINDOW** w = tl->wobj[0].data->wins;
 		WINDOW* wins[] = {w[0], w[4], w[5]};
 		dialog(wins, "The selected file exceeds the limit of 400MB. Aborted");
@@ -911,7 +906,7 @@ int fcopy(struct TabList *tl, struct Data *data, char* file) {
 
 	mvwaddstr(data->wins[1],0, 2, " ");
 	wrefresh(data->wins[1]);
-	free(s); free(path);
+	free(path);
 	return 1;
 }
 
@@ -1043,6 +1038,7 @@ void del_tab(WINDOW* tabwin, struct TabList *tl) {
 	tl->wobj = realloc(tl->wobj, sizeof(struct Wobj)*(tl->size-1));handleMemError(tl->wobj, "realloc(2) on del_tab");
 	tl->list = realloc(tl->list, tl->size-1);handleMemError(tl->list, "realloc(2) on del_tab");
 	tl->size--;
+	tl->point = tl->size-1;
 	wmove(tabwin,0,0);wclrtoeol(tabwin);
 	for (int i=0; i<tl->size; i++) {
 		char str[4] = {' ', tl->list[i]+48, ' ', 0};
@@ -1056,7 +1052,6 @@ void del_tab(WINDOW* tabwin, struct TabList *tl) {
 		mvwaddstr(tabwin, 0, tl->point*3, str);
 		wattroff(tabwin, COLOR_PAIR(7));
 	}
-	tl->point = tl->size;
 	wrefresh(tabwin);
 }
 

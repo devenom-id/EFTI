@@ -276,10 +276,11 @@ void *server_handle(void* conn) { /*server's core*/
 				break;
 			}
 			case 0: /*disconnected*/
-			case OP_DISCONNECT:
+			case OP_DISCONNECT: {
 				if (sd.content) free(sd.content);
 				close(fd);
 				return 0;
+			}
 		}
 		free(sd.content);
 	}
