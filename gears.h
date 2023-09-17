@@ -12,7 +12,7 @@ struct Fopt {
 };
 struct Data {
 	void* data;
-	int ptrs[2];
+	int* ptrs;
 	WINDOW** wins;
 	int wins_size;
 };

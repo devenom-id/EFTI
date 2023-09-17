@@ -381,14 +381,29 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	tl->wobj[tl->size-1].fd = fd;
 	tl->wobj[tl->size-1].ls = NULL;
 	tl->wobj[tl->size-1].attrls = NULL;
-	tl->wobj[tl->size-1].bind.keys = newBindArr_1(13, 'v','u','h','M','r','s','m','c','D','n','N', 'C', 9);
-	tl->wobj[tl->size-1].bind.func = newBindArr_2(13, view, updir, hideDot, popup_menu, fileRename,
-						fselect, fmove, fcopy, fdelete, fnew, dnew, client_connect, b_tab_switch);
-	tl->wobj[tl->size-1].bind.nmemb = 13;
+	tl->wobj[tl->size-1].bind.keys = newBindArr_1(14, 'v','u','h','M','r','s','m','c','D','n','N', 'C', 9, 'q');
+	tl->wobj[tl->size-1].bind.func = newBindArr_2(14, view, updir, hideDot, popup_menu, fileRename,
+						fselect, fmove, fcopy, fdelete, fnew, dnew, client_connect, b_tab_switch, client_disconnect);
+	tl->wobj[tl->size-1].bind.nmemb = 14;
 	char* pwd = gethome(fd);
 	tl->wobj[tl->size-1].pwd = pwd;
 	return 1;
 }
-int client_disconnect();
+int client_disconnect(struct TabList* tl, struct Data* data, char* f) {
+	struct Wobj* wobj = get_current_tab(tl);
+	free(wobj->attrls);
+	free(wobj->ls);
+	free(wobj->pwd);
+	free(wobj->data->data);
+	free(wobj->data);
+	free(wobj->bind.func);
+	free(wobj->bind.keys);
+	delwin(wobj->win);
+	high_SendOrder(wobj->fd, OP_DISCONNECT, 1, 0, "");
+	close(wobj->fd);
+	WINDOW* tabwin = tl->wobj[0].data->wins[2];
+	del_tab(tabwin, tl);
+	return 1;
+}
 int server_send(struct TabList *tl, struct Data* data, void* n) {return 1;}
 int server_retrieve(struct TabList *tl, struct Data* data, void* n) {return 1;}

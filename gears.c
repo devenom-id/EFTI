@@ -233,6 +233,7 @@ void reverse(char* str) {
 wchar_t *geticon(struct Wobj* wobj, char* file) {
 	if (W_ISDIR(wobj, wobj->data->ptrs[1], file)) return L"";
 	char *s=getExtension(file);
+	if (!s) return L"󰦨 ";
 	wchar_t *ico;
 	if (!strcmp(s, ".c")) ico=L" ";
 	else if (!strcmp(s, ".py")) ico=L"󰌠 ";
@@ -374,6 +375,7 @@ int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int)) {
 	int p = 0;
 	int sp = 0;
 	int ptrs[2] = {0};
+	wobj->data->ptrs = ptrs;
 	int top = y;
 	int size = cb.nmemb;
 	dcb(tl, 0, y, ptrs,  0);
@@ -609,7 +611,7 @@ void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
 	struct string hstr; string_init(&hstr);
 	// order - dig - size - cont
 	// TODO check if size of size[] can be adjusted later to something better
-	char *sz = calloc(dig+1, 1); snprintf(sz, 11, "%lu", size);
+	char *sz = calloc(dig+1, 1); snprintf(sz, dig+1, "%lu", size);
 	if (order != -1) string_addch(&hstr, order+48);
 	string_add(&hstr, itodg(dig));
 	string_add(&hstr, sz);
@@ -1036,6 +1038,9 @@ void add_tab(WINDOW* tabwin, struct TabList *tl) {
 }
 
 void del_tab(WINDOW* tabwin, struct TabList *tl) {
+	struct Wobj* wobj = get_current_tab(tl);
+	if (wobj->local) return;
+	tl->wobj = realloc(tl->wobj, sizeof(struct Wobj)*(tl->size-1));handleMemError(tl->wobj, "realloc(2) on del_tab");
 	tl->list = realloc(tl->list, tl->size-1);handleMemError(tl->list, "realloc(2) on del_tab");
 	tl->size--;
 	wmove(tabwin,0,0);wclrtoeol(tabwin);
@@ -1051,6 +1056,7 @@ void del_tab(WINDOW* tabwin, struct TabList *tl) {
 		mvwaddstr(tabwin, 0, tl->point*3, str);
 		wattroff(tabwin, COLOR_PAIR(7));
 	}
+	tl->point = tl->size;
 	wrefresh(tabwin);
 }
 

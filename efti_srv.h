@@ -23,7 +23,7 @@ void server_create();
 void server_kill();
 /* Lee el archivo que contiene el pid del server, envía SIGTERM al server
  * y elimina el archivo.*/
-int client_disconnect();
+int client_disconnect(struct TabList* tl, struct Data* data, char* f);
 /* Cierra la conexión al servidor remoto.
  * Destruye el wobj asociado a esa conexión. (del_tab)*/
 void server_main();
