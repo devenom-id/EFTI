@@ -1,4 +1,5 @@
 #include <curses.h>
+#include <json-c/json_object.h>
 #include <stdio.h>
 #include <wchar.h>
 #include <string.h>
@@ -15,6 +16,7 @@
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <json.h>
 #include "efti_srv.h"
 #include "gears.h"
 #include "libncread/ncread.h"
@@ -35,6 +37,7 @@ void handleMemError(void* m, const char* str) {
 	(void) perror(str);
 	exit(1);
 }
+
 void dialog(WINDOW** wins, const char* s) {
 	int y,x; getmaxyx(wins[0],y,x);
 	int size=strlen(s)+2;
@@ -49,10 +52,24 @@ void dialog(WINDOW** wins, const char* s) {
 	wattroff(win, COLOR_PAIR(5));
 	wrefresh(win);
 	for (;;) {
-		int ch=wgetch(win);
-		if (ch == 27 || ch == 10) break;
+	int ch=wgetch(win);
+	if (ch == 27 || ch == 10) break;
 	}
 	delwin(win); touchwin(wins[1]); wrefresh(wins[2]);
+}
+
+void create_dir_if_not_exist(const char* path) {
+	struct vector str = string_split((char*)path, '/');
+	if (!strlen(str.str[0])) {vector_popat(&str, 0);}
+	struct string P; string_init(&P);
+	if (path[0] == '/') {string_addch(&P, '/');}
+	for (int i=0; i<str.size; i++) {
+		string_add(&P, str.str[i]);
+		string_addch(&P, '/');
+		if (open(P.str, O_RDONLY) == -1) {
+			mkdir(P.str, 0777);
+		}
+	}
 }
 
 char *itodg(int dig) {
@@ -456,9 +473,9 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 				fclose(Tmp);
 				free(svd.content);
 			}
-			char *argv[] = {"/usr/bin/nvim", cpy, NULL, NULL};
+			char *argv[] = {(char*)tl->settings.defed, cpy, NULL, NULL};
 			if (!local) {argv[2] = "-R";}
-			execvp("nvim", argv);
+			execvp(tl->settings.defed, argv);
 			exit(1);
 		}
 		wait(NULL);
@@ -640,22 +657,34 @@ struct Srvdata high_GetFileData(struct TabList* tl, int fd, char* path) {
 }
 
 void increase_max_tmp(int tmp) {
-	FILE* F = fopen("/tmp/efti/maxfn", "w");
+	char *tmp_path = TMP_PATH;
+	char *tp1 = malloc(strlen(tmp_path)+11+1);
+	strcpy(tp1, tmp_path); strcat(tp1, "/efti/maxfn");
+	FILE* F = fopen(tp1, "w");
 	tmp++;
 	char *buff = calloc(enumdig(tmp)+1, 1);
 	sprintf(buff, "%d", tmp);
 	fwrite(buff, 1, enumdig(tmp), F);
 	fclose(F);
+	free(tp1);
 }
 
 char* high_GetTempFile(char *file) {
-	create_dir_if_not_exist("/tmp/efti");
-	FILE* F = fopen("/tmp/efti/maxfn", "r");
+	char *tmp_path = TMP_PATH;
+	int tmp_size = strlen(tmp_path);
+	char *tp1 = malloc(tmp_size+6+1);
+	char *tp2 = malloc(tmp_size+11+1);
+	char *tp3 = malloc(tmp_size+7+1);
+	strcpy(tp1, tmp_path); strcat(tp1, "/efti/");
+	strcpy(tp2, tmp_path); strcat(tp2, "/efti/maxfn");
+	strcpy(tp3, tmp_path); strcat(tp3, "/efti/0");
+	create_dir_if_not_exist(tp1);
+	FILE* F = fopen(tp2, "r");
 	if (!F) {
 		increase_max_tmp(0);
-		return "/tmp/efti/0";
+		return tp3;
 	}
-	struct stat st; stat("/tmp/efti/maxfn", &st);
+	struct stat st; stat(tp2, &st);
 	char *buff = calloc(st.st_size+1, 1);
 	fread(buff, 1, st.st_size, F);
 	int tmp = atoi(buff);
@@ -667,9 +696,10 @@ char* high_GetTempFile(char *file) {
 	buff = calloc(10+enumdig(tmp)+extension_size+1, 1);
 	char* size = calloc(enumdig(tmp)+1, 1);
 	snprintf(size, enumdig(tmp)+1, "%d", tmp);
-	strcpy(buff, "/tmp/efti/");
+	strcpy(buff, tp1);
 	strcat(buff, size);
 	if (extension) strcat(buff, extension);
+	free(tp1);free(tp2);free(tp3);
 	return buff;
 }
 
@@ -704,7 +734,7 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 			free(svd.content);
 		}
 		close(0);close(1);close(2);
-		execlp("feh", "feh", param, NULL);
+		execlp(tl->settings.defimg, tl->settings.defimg, param, NULL);
 		if (!local) remove(param);
 		exit(1);
 	}
@@ -1193,6 +1223,62 @@ int navigate(WINDOW* win, int emph_color[2], struct Mobj *mobj, struct Callback 
 		}
 	}
 	return 1;
+}
+
+void load_settings(struct TabList* tl) {
+	char* home = getenv("HOME");
+	int home_len = strlen(home);
+	char* path = malloc(home_len+19+1);
+	strcpy(path, home);
+	strcat(path, "/.local/share/efti/");
+	char* fpath = strdup(path);
+	fpath = realloc(fpath, home_len+19+9+1);
+	strcat(fpath, "conf.json");
+	create_dir_if_not_exist(path);
+	struct stat st;
+	if (stat(fpath, &st) == -1 && errno == ENOENT) {
+		tl->settings.srv_local = 0;
+		tl->settings.port = 4545;
+		FILE* Ftest = fopen("/usr/bin/nvim", "r");
+		tl->settings.defed = (Ftest) ? "/usr/bin/nvim" : "/usr/bin/vim";
+		tl->settings.defimg = TERMUX ? "/data/data/com.termux/files/usr/bin/termux-open" : "/usr/bin/feh";
+		fclose(Ftest);
+		struct json_object* jobj = json_object_new_object();
+		json_object_object_add(jobj, "srv_local", json_object_new_int(0));
+		json_object_object_add(jobj, "port", json_object_new_int(4545));
+		json_object_object_add(jobj, "defed", json_object_new_string(tl->settings.defed));
+		json_object_object_add(jobj, "defimg", json_object_new_string(tl->settings.defimg));
+		FILE *F = fopen(fpath, "w");
+		fputs(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PRETTY), F);
+		fclose(F);
+		free(path);free(fpath);
+		return;
+	}
+	FILE* F = fopen(fpath, "r");
+	char* buff = calloc(1,st.st_size+1);
+	fread(buff, 1, st.st_size, F);
+	fclose(F);
+	struct json_object* jobj = json_tokener_parse(buff);
+	struct json_object* lan;
+	struct json_object* port;
+	struct json_object* defed;
+	struct json_object* defimg;
+	json_object_object_get_ex(jobj, "srv_local", &lan);
+	json_object_object_get_ex(jobj, "port", &port);
+	json_object_object_get_ex(jobj, "defed", &defed);
+	json_object_object_get_ex(jobj, "defimg", &defimg);
+	tl->settings.srv_local = json_object_get_int(lan);
+	tl->settings.port = json_object_get_int(port);
+	tl->settings.defed = json_object_get_string(defed);
+	tl->settings.defimg = json_object_get_string(defimg);
+	free(path);free(fpath);free(buff);
+}
+
+int settings(struct TabList* tl, struct Data* data, char* f) {
+	/* 1. bool srv_local
+	 * 2. int Server Port
+	 * 3. str Default editor
+	 * 4. str Default image visualizer*/
 }
 
 /*

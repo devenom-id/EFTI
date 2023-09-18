@@ -32,47 +32,41 @@ int get_addr(char **s, char *a) {
 	return 1;
 }
 
-void create_dir_if_not_exist(const char* path) {
-	struct vector str = string_split((char*)path, '/');
-	if (!strlen(str.str[0])) {vector_popat(&str, 0);}
-	struct string P; string_init(&P);
-	if (path[0] == '/') {string_addch(&P, '/');}
-	for (int i=0; i<str.size; i++) {
-		string_add(&P, str.str[i]);
-		string_addch(&P, '/');
-		if (open(P.str, O_RDONLY) == -1) {
-			mkdir(P.str, 0777);
-		}
-	}
-}
-
-void server_create() { /*Create server's process*/
-	create_dir_if_not_exist("/tmp/efti");
-	if (open("/tmp/efti/pid", O_RDONLY) != -1) { /*if server exists, don't create another one*/
+void server_create(struct TabList* tl) { /*Create server's process*/
+	char *tmp_path = TMP_PATH;
+	int tmp_size = strlen(tmp_path);
+	char* tp1 = malloc(tmp_size+5+1);
+	char* tp2 = malloc(tmp_size+9+1);
+	strcpy(tp1, tmp_path); strcat(tp1, "/efti");
+	strcpy(tp2, tmp_path); strcat(tp2, "/efti/pid");
+	create_dir_if_not_exist(tp1);
+	if (open(tp2, O_RDONLY) != -1) { /*if server exists, don't create another one*/
 		return;
 	}
 	pid_t pid = fork();
 	if (!pid) {
-		server_main();
+		server_main(tl);
 		exit(0);
 	}
-	FILE *F = fopen("/tmp/efti/pid", "w");
+	FILE *F = fopen(tp2, "w");
 	fprintf(F, "%d\n", pid);
 	fclose(F);
+	free(tp1); free(tp2);
 	return;
 }
 
-void server_main() { /*server: listen for connections*/
+void server_main(struct TabList* tl) { /*server: listen for connections*/
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(4545);
-	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(tl->settings.port);
+	if (!tl->settings.srv_local) addr.sin_addr.s_addr = INADDR_ANY;
+	else inet_aton("127.0.0.1", &addr.sin_addr);
 
 	socklen_t addsize = sizeof(addr);
 	int serv = socket(AF_INET, SOCK_STREAM, 0);
 	int opt = 1;
 	setsockopt(serv, SOL_SOCKET, SO_REUSEADDR, &opt, (socklen_t)sizeof(opt));
-	(void)bind(serv, (struct sockaddr*)&addr, addsize); /*TODO: check output of this.*/
+	int r = bind(serv, (struct sockaddr*)&addr, addsize); /*TODO: check output of this.*/
 	listen(serv, 1);
 	for (;;) {
 		int fd = accept(serv, (struct sockaddr*)&addr, &addsize);
@@ -288,7 +282,10 @@ void *server_handle(void* conn) { /*server's core*/
 }
 
 void server_kill() { /*kill server if exists*/
-	int fd = open("/tmp/efti/pid", O_RDONLY);
+	char *tmp_path = TMP_PATH;
+	char *tp1 = malloc(strlen(tmp_path)+9+1);
+	strcpy(tp1, tmp_path); strcat(tp1, "/efti/pid");
+	int fd = open(tp1, O_RDONLY);
 	if (fd == -1) return;
 	int pid=0;
 	for (;;) {
@@ -298,7 +295,8 @@ void server_kill() { /*kill server if exists*/
 		pid*=10;pid+=buff[0]-48;
 	}
 	kill(pid, SIGKILL);
-	unlink("/tmp/efti/pid");
+	unlink(tp1);
+	free(tp1);
 }
 
 char* gethome(int fd) {
@@ -406,5 +404,3 @@ int client_disconnect(struct TabList* tl, struct Data* data, char* f) {
 	del_tab(tabwin, tl);
 	return 1;
 }
-int server_send(struct TabList *tl, struct Data* data, void* n) {return 1;}
-int server_retrieve(struct TabList *tl, struct Data* data, void* n) {return 1;}

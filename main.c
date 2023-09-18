@@ -50,6 +50,7 @@ int main() {
 	uptime(uptime_buff);
 	struct TabList tl;
 	tab_init(&tl);
+	load_settings(&tl);
 	add_tab(tabwin, &tl);
 	mvwaddstr(lowbar, 0, 2, "Uptime: ");
 	waddstr(lowbar, uptime_buff);
@@ -131,7 +132,7 @@ int launch_create(struct TabList *tl, struct Data *data, void* d) {
 	struct TabList *otl = (struct TabList*)d;
 	WINDOW* stdscr = otl->wobj[0].data->wins[0];
 	WINDOW* lowbar = otl->wobj[0].data->wins[3];
-	server_create();
+	server_create(otl);
 	int y,x; getmaxyx(stdscr, y, x);
 	wmove(lowbar, 0, x-9); wclrtoeol(lowbar);
 	mvwaddstr(lowbar, 0, x-9, "Online");
@@ -152,6 +153,9 @@ int launch_stop(struct TabList *tl, struct Data *data, void* d) {
 }
 
 int popup_menu(struct TabList *otl, struct Data *data, char* file) {
+	char *tmp_path = TMP_PATH;
+	char *tp1 = malloc(strlen(tmp_path)+9+1);
+	strcpy(tp1, tmp_path); strcat(tp1, "/efti/pid");
 	WINDOW* win = newwin(7, 16, 1, 0);
 	WINDOW* mwin = newwin(5, 14, 2, 1);
 	keypad(mwin,1);
@@ -161,7 +165,7 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	wrefresh(win);
 	char* fname;
 	int (*fn)(struct TabList*,struct Data*, void*);
-	if (open("/tmp/efti/pid", O_RDONLY) == -1) {fname="Start server"; fn=launch_create;}
+	if (open(tp1, O_RDONLY) == -1) {fname="Start server"; fn=launch_create;}
 	else {fname="Stop server";fn=launch_stop;}
 
 	char* ls[4] = {fname, "Quick launcher", "Settings", "Close"};
@@ -186,7 +190,7 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	for (;;) {
 		int res = menu(&tl, display_opts);
 		if (res) {
-			if (open("/tmp/efti/pid", O_RDONLY) == -1) {ls[0]="Start server";func[0]=launch_create;}
+			if (open(tp1, O_RDONLY) == -1) {ls[0]="Start server";func[0]=launch_create;}
 			else {ls[0]="Stop server";func[0]=launch_stop;}
 			wmove(mwin,0,0);wclrtobot(mwin);
 			wrefresh(win);wrefresh(mwin);
@@ -198,5 +202,6 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 		touchwin(data->wins[i]);
 		wrefresh(data->wins[i]);
 	}
+	free(tp1);
 	return 1;
 }

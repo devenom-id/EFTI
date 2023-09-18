@@ -1,5 +1,11 @@
 #ifndef GEARS_H
 #define GEARS_H
+#ifndef TERMUX
+#define TERMUX 0
+#endif
+#ifndef TMP_PATH
+#define TMP_PATH "/tmp"
+#endif
 #define TRANSF_LIMIT 400000000
 #include <curses.h>
 #include <ncurses.h>
@@ -47,12 +53,19 @@ struct Tmp_path {
 	char* path;
 	int id;
 };
+struct Settings {
+	int srv_local;
+	int port;
+	const char* defed;
+	const char* defimg;
+};
 struct TabList {
 	struct Tmp_path tmp_path;
 	char *list;
 	int point;
 	int size;
-	struct Wobj *wobj;
+	struct Wobj* wobj;
+	struct Settings settings;
 };
 struct ObjText {
 	int yx[2];
@@ -83,6 +96,7 @@ struct Mobj {
 int popup_menu(struct TabList *otl, struct Data *data, char* file);
 void handleMemError(void* m, const char* str);
 void dialog(WINDOW** wins, const char* s);
+void create_dir_if_not_exist(const char* path);
 char *itodg(int dig);
 int enumdig(int n);
 void uptime(char* buff);
@@ -128,6 +142,6 @@ struct Mobj NewCheck(int y, int x, int checked, const char* text);
 struct Mobj NewRect(int y1, int x1, int y2, int x2);
 void print_mobj(WINDOW* win, int color, struct Mobj mobj);
 int navigate(WINDOW* win, int emph_color[2], struct Mobj *mobj, struct Callback cb);
-int server_send(struct TabList *tl, struct Data* data, void* n);
-int server_retrieve(struct TabList *tl, struct Data* data, void* n);
+void load_settings(struct TabList* tl);
+int settings(struct TabList* tl, struct Data* data, char* f);
 #endif
