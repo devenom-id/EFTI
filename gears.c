@@ -1240,7 +1240,15 @@ void load_settings(struct TabList* tl) {
 		tl->settings.srv_local = 0;
 		tl->settings.port = 4545;
 		struct stat st;
-		tl->settings.defed = (stat("/usr/bin/nvim", &st)==-1 && errno==ENOENT) ? "/usr/bin/vim" : "/usr/bin/nvim";
+		if (!TERMUX) {
+			if (stat("/usr/bin/nvim", &st)==-1 && errno==ENOENT) {
+				tl->settings.defed = "/usr/bin/vim";
+			} else tl->settings.defed = "/usr/bin/nvim";
+		} else {
+			if (stat("/data/data/com.termux/files/usr/bin/nvim", &st)==-1 && errno==ENOENT) {
+				tl->settings.defed = "/data/data/com.termux/files/usr/bin/vim";
+			} else tl->settings.defed = "/data/data/com.termux/files/usr/bin/nvim";
+		}
 		tl->settings.defimg = TERMUX ? "/data/data/com.termux/files/usr/bin/termux-open" : "/usr/bin/feh";
 		struct json_object* jobj = json_object_new_object();
 		json_object_object_add(jobj, "srv_local", json_object_new_int(0));
