@@ -478,7 +478,13 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 			execvp(tl->settings.defed, argv);
 			exit(1);
 		}
-		wait(NULL);
+		int status;
+		wait(&status);
+		FILE *F = fopen("log", "w");
+		fprintf(F, "wifexited: %d\nwexitstatus: %d\nwifsignaled: %d\nwtermsig: %d\nwifstopped: %d\nwstopsig: %d\nwifcontinued: %d\n",
+				WIFEXITED(status), WEXITSTATUS(status), WIFSIGNALED(status), WTERMSIG(status), WIFSTOPPED(status),
+				WSTOPSIG(status), WIFCONTINUED(status));
+		fclose(F);
 		refresh();
 	}
 	return 1;
