@@ -1,3 +1,4 @@
+#include <bits/types/siginfo_t.h>
 #include <curses.h>
 #include <json-c/json_object.h>
 #include <stdio.h>
@@ -478,13 +479,13 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 			execvp(tl->settings.defed, argv);
 			exit(1);
 		}
-		int status;
-		wait(&status);
-		FILE *F = fopen("log", "w");
+		siginfo_t status;
+		waitid(P_ALL, pid, &status, WEXITED);
+		/*FILE *F = fopen("log", "w");
 		fprintf(F, "wifexited: %d\nwexitstatus: %d\nwifsignaled: %d\nwtermsig: %d\nwifstopped: %d\nwstopsig: %d\nwifcontinued: %d\n",
 				WIFEXITED(status), WEXITSTATUS(status), WIFSIGNALED(status), WTERMSIG(status), WIFSTOPPED(status),
 				WSTOPSIG(status), WIFCONTINUED(status));
-		fclose(F);
+		fclose(F);*/
 		refresh();
 	}
 	return 1;
