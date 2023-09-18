@@ -693,7 +693,7 @@ char* high_GetTempFile(char *file) {
 	free(buff);
 	char *extension = getExtension(file);
 	int extension_size = (extension) ? strlen(extension) : 0;
-	buff = calloc(10+enumdig(tmp)+extension_size+1, 1);
+	buff = calloc(strlen(tp1)+enumdig(tmp)+extension_size+1, 1);
 	char* size = calloc(enumdig(tmp)+1, 1);
 	snprintf(size, enumdig(tmp)+1, "%d", tmp);
 	strcpy(buff, tp1);
@@ -1262,7 +1262,7 @@ void load_settings(struct TabList* tl) {
 		return;
 	}
 	FILE* F = fopen(fpath, "r");
-	char* buff = calloc(1,st.st_size+1);
+	char* buff = calloc(st.st_size+1, 1);
 	fread(buff, 1, st.st_size, F);
 	fclose(F);
 	struct json_object* jobj = json_tokener_parse(buff);
