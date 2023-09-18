@@ -478,11 +478,14 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 			execvp(tl->settings.defed, argv);
 			exit(1);
 		}
-		siginfo_t status;
-		waitid(P_ALL, pid, &status, WEXITED);
-		FILE *F = fopen("log", "w");
+		for (;;) {
+			int status=0;
+			wait(&status);
+			if (WIFEXITED(status)) break;
+		}
+		/*FILE *F = fopen("log", "w");
 		fprintf(F, "si_status: %d\nsi_code: %d", status.si_status, status.si_code);
-		fclose(F);
+		fclose(F);*/
 		refresh();
 	}
 	return 1;
