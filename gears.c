@@ -481,7 +481,7 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 		for (;;) {
 			int status=0;
 			wait(&status);
-			if (WIFEXITED(status)) break;
+			if (status && WIFEXITED(status)) break;
 		}
 		/*FILE *F = fopen("log", "w");
 		fprintf(F, "si_status: %d\nsi_code: %d", status.si_status, status.si_code);
