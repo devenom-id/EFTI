@@ -143,5 +143,5 @@ struct Mobj NewRect(int y1, int x1, int y2, int x2);
 void print_mobj(WINDOW* win, int color, struct Mobj mobj);
 int navigate(WINDOW* win, int emph_color[2], struct Mobj *mobj, struct Callback cb);
 void load_settings(struct TabList* tl);
-int settings(struct TabList* tl, struct Data* data, char* f);
+int settings(struct TabList* tl, struct Data* data, void* d);
 #endif

@@ -171,8 +171,8 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	char* ls[4] = {fname, "Quick launcher", "Settings", "Close"};
 	struct TCallback cb; struct Data _data; struct Binding bind;
 
-	int (*func[4])(struct TabList*, struct Data*, void*) = {fn, NULL, NULL, menu_close};
-	void *args[4] = {otl, NULL, NULL, NULL};
+	int (*func[4])(struct TabList*, struct Data*, void*) = {fn, NULL, settings, menu_close};
+	void *args[4] = {otl, NULL, otl, NULL};
 	cb.func=func;cb.args=args;cb.nmemb=4;
 
 	bind.nmemb=0;

@@ -21,6 +21,7 @@
 #include "gears.h"
 #include "libncread/ncread.h"
 #include "libncread/vector.h"
+#include "logger/logger.h"
 
 int _;
 void handleError(int c, int n, const char* str) {
@@ -1288,11 +1289,64 @@ void load_settings(struct TabList* tl) {
 	free(path);free(fpath);free(buff);
 }
 
-int settings(struct TabList* tl, struct Data* data, char* f) {
+int mod_strsetting(WINDOW* win, struct Data* data, void* d) {
+	void** x = (void**)d;
+	char** S = (char**)x[0];
+	int y = ((int*)x[1])[0];
+	int X = ((int*)x[1])[1];
+	int charlim = ((int*)x[1])[2];
+	char* buff;
+	ampsread(win, &buff, y, X, 15, charlim, 0);
+	if (!buff) return 1;
+	*S = buff;
+}
+
+int mod_boolsetting(WINDOW* tl, struct Data* data, void* d) {
+	int* S = (int*)d;
+	*S = !(*S);
+}
+
+int settings(struct TabList* tl, struct Data* data, void* d) {
 	/* 1. bool srv_local
 	 * 2. int Server Port
 	 * 3. str Default editor
 	 * 4. str Default image visualizer*/
+	struct TabList *otl = (struct TabList*)d;
+	WINDOW* wr = otl->wobj[0].data->wins[4];
+	WINDOW* wfiles = otl->wobj[0].data->wins[5];
+	WINDOW* main = otl->wobj[0].data->wins[4];
+	WINDOW* tabwin = otl->wobj[0].data->wins[2];
+	WINDOW* stdscr = otl->wobj[0].data->wins[0];
+	WINDOW* wins[] = {stdscr, main, wfiles};
+	int y, x; getmaxyx(stdscr, y, x);
+	WINDOW* wsettings = newwin(9, 45, y/2-4, x/2-22);
+	getmaxyx(wsettings, y, x);
+	wbkgd(wsettings, COLOR_PAIR(1));
+	keypad(wsettings, 1);
+	box(wsettings, ACS_VLINE, ACS_HLINE);
+	mvwaddstr(wsettings, 1, x/2-4, "Settings");
+	wrefresh(wsettings);
+	// wgetch(wsettings);
+	int emph_color[2] = {2, 4};
+	struct Mobj mobj[4] = {
+		NewField(3, 23, 15),
+		NewField(4, 28, 15),
+		NewField(5, 15, 6), //"Default server port"
+		NewCheck(6, 2, tl->settings.srv_local, "Server: Local only") // TODO check value depending on settings
+	};
+	mvwaddstr(wsettings, 3, 2, "Default text editor: ");
+	mvwaddstr(wsettings, 4, 2, "Default image visualizer: ");
+	mvwaddstr(wsettings, 5, 2, "Server port: ");
+	wrefresh(wsettings);
+	int na[] = {3,23,15}; int nb[] = {4,28,15}; int nc[] = {5,15,6};
+	void* a[3] = {&tl->settings.defed, na};
+	void* b[2] = {&tl->settings.defimg, nb};
+	void* c[2] = {&tl->settings.port, &nc};
+	int (*func[])(WINDOW*, struct Data*, void*) = {mod_strsetting, mod_strsetting, mod_strsetting, mod_boolsetting};
+	void *args[] = {a, b, c, &tl->settings.srv_local};
+	struct Callback cb = {func, args, 4};
+	navigate(wsettings, emph_color, mobj, cb);
+	return 1;
 }
 
 /*
