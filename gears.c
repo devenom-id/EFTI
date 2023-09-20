@@ -92,6 +92,13 @@ int enumdig(int n) {
 	return d;
 }
 
+void itoa(int n, int d, char*b) {
+	for (int i=d-1; i>=0; i--) {
+		b[i] = (n%10)+48;
+		n /= 10;
+	}
+}
+
 void tcbreak(struct termios *old, struct termios *tty) {
 	tcgetattr(0, old);
 	tty = old;
@@ -1299,11 +1306,13 @@ int mod_strsetting(WINDOW* win, struct Data* data, void* d) {
 	ampsread(win, &buff, y, X, 15, charlim, 0);
 	if (!buff) return 1;
 	*S = buff;
+	return 1;
 }
 
 int mod_boolsetting(WINDOW* tl, struct Data* data, void* d) {
 	int* S = (int*)d;
 	*S = !(*S);
+	return 1;
 }
 
 int settings(struct TabList* tl, struct Data* data, void* d) {
@@ -1318,6 +1327,8 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	WINDOW* tabwin = otl->wobj[0].data->wins[2];
 	WINDOW* stdscr = otl->wobj[0].data->wins[0];
 	WINDOW* wins[] = {stdscr, main, wfiles};
+	char port[6]={0};
+	itoa(otl->settings.port, enumdig(otl->settings.port), port);
 	int y, x; getmaxyx(stdscr, y, x);
 	WINDOW* wsettings = newwin(9, 45, y/2-4, x/2-22);
 	getmaxyx(wsettings, y, x);
@@ -1326,24 +1337,27 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	box(wsettings, ACS_VLINE, ACS_HLINE);
 	mvwaddstr(wsettings, 1, x/2-4, "Settings");
 	wrefresh(wsettings);
-	// wgetch(wsettings);
 	int emph_color[2] = {2, 4};
 	struct Mobj mobj[4] = {
 		NewField(3, 23, 15),
 		NewField(4, 28, 15),
 		NewField(5, 15, 6), //"Default server port"
-		NewCheck(6, 2, tl->settings.srv_local, "Server: Local only") // TODO check value depending on settings
+		NewCheck(6, 2, otl->settings.srv_local, "Server: Local only") // TODO check value depending on settings
 	};
 	mvwaddstr(wsettings, 3, 2, "Default text editor: ");
 	mvwaddstr(wsettings, 4, 2, "Default image visualizer: ");
 	mvwaddstr(wsettings, 5, 2, "Server port: ");
+
+	mvwaddstr(wsettings, 3, 23, otl->settings.defed);
+	mvwaddstr(wsettings, 4, 28, otl->settings.defimg);
+	mvwaddstr(wsettings, 5, 15, port);
 	wrefresh(wsettings);
 	int na[] = {3,23,15}; int nb[] = {4,28,15}; int nc[] = {5,15,6};
-	void* a[3] = {&tl->settings.defed, na};
-	void* b[2] = {&tl->settings.defimg, nb};
-	void* c[2] = {&tl->settings.port, &nc};
+	void* a[3] = {&otl->settings.defed, na};
+	void* b[2] = {&otl->settings.defimg, nb};
+	void* c[2] = {&otl->settings.port, &nc};
 	int (*func[])(WINDOW*, struct Data*, void*) = {mod_strsetting, mod_strsetting, mod_strsetting, mod_boolsetting};
-	void *args[] = {a, b, c, &tl->settings.srv_local};
+	void *args[] = {a, b, c, &otl->settings.srv_local};
 	struct Callback cb = {func, args, 4};
 	navigate(wsettings, emph_color, mobj, cb);
 	return 1;
