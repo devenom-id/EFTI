@@ -55,7 +55,7 @@ struct Tmp_path {
 };
 struct Settings {
 	int srv_local;
-	int port;
+	const char* port;
 	const char* defed;
 	const char* defimg;
 };

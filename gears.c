@@ -1253,7 +1253,7 @@ void load_settings(struct TabList* tl) {
 	struct stat st;
 	if (stat(fpath, &st) == -1 && errno == ENOENT) {
 		tl->settings.srv_local = 0;
-		tl->settings.port = 4545;
+		tl->settings.port = "4545";
 		struct stat st;
 		if (!TERMUX) {
 			if (stat("/usr/bin/nvim", &st)==-1 && errno==ENOENT) {
@@ -1267,7 +1267,7 @@ void load_settings(struct TabList* tl) {
 		tl->settings.defimg = TERMUX ? "/data/data/com.termux/files/usr/bin/termux-open" : "/usr/bin/feh";
 		struct json_object* jobj = json_object_new_object();
 		json_object_object_add(jobj, "srv_local", json_object_new_int(0));
-		json_object_object_add(jobj, "port", json_object_new_int(4545));
+		json_object_object_add(jobj, "port", json_object_new_string(tl->settings.port));
 		json_object_object_add(jobj, "defed", json_object_new_string(tl->settings.defed));
 		json_object_object_add(jobj, "defimg", json_object_new_string(tl->settings.defimg));
 		FILE *F = fopen(fpath, "w");
@@ -1290,10 +1290,30 @@ void load_settings(struct TabList* tl) {
 	json_object_object_get_ex(jobj, "defed", &defed);
 	json_object_object_get_ex(jobj, "defimg", &defimg);
 	tl->settings.srv_local = json_object_get_int(lan);
-	tl->settings.port = json_object_get_int(port);
+	tl->settings.port = json_object_get_string(port);
 	tl->settings.defed = json_object_get_string(defed);
 	tl->settings.defimg = json_object_get_string(defimg);
 	free(path);free(fpath);free(buff);
+}
+
+void write_settings(struct TabList* tl) {
+	char* home = getenv("HOME");
+	int home_len = strlen(home);
+	char* path = malloc(home_len+19+1);
+	strcpy(path, home);
+	strcat(path, "/.local/share/efti/");
+	char* fpath = strdup(path);
+	fpath = realloc(fpath, home_len+19+9+1);
+	strcat(fpath, "conf.json");
+	FILE* F = fopen(fpath, "w");
+	struct json_object* jobj = json_object_new_object();
+	json_object_object_add(jobj, "srv_local", json_object_new_int(tl->settings.srv_local));
+	json_object_object_add(jobj, "port", json_object_new_string(tl->settings.port));
+	json_object_object_add(jobj, "defed", json_object_new_string(tl->settings.defed));
+	json_object_object_add(jobj, "defimg", json_object_new_string(tl->settings.defimg));
+	fputs(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PRETTY), F);
+	fclose(F);
+	free(path);free(fpath);
 }
 
 int mod_strsetting(WINDOW* win, struct Data* data, void* d) {
@@ -1302,10 +1322,7 @@ int mod_strsetting(WINDOW* win, struct Data* data, void* d) {
 	int y = ((int*)x[1])[0];
 	int X = ((int*)x[1])[1];
 	int charlim = ((int*)x[1])[2];
-	char* buff;
-	ampsread(win, &buff, y, X, 15, charlim, 0);
-	if (!buff) return 1;
-	*S = buff;
+	ampsread(win, S, y, X, 15, charlim, 0);
 	return 1;
 }
 
@@ -1327,8 +1344,6 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	WINDOW* tabwin = otl->wobj[0].data->wins[2];
 	WINDOW* stdscr = otl->wobj[0].data->wins[0];
 	WINDOW* wins[] = {stdscr, main, wfiles};
-	char port[6]={0};
-	itoa(otl->settings.port, enumdig(otl->settings.port), port);
 	int y, x; getmaxyx(stdscr, y, x);
 	WINDOW* wsettings = newwin(9, 45, y/2-4, x/2-22);
 	getmaxyx(wsettings, y, x);
@@ -1344,13 +1359,13 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 		NewField(5, 15, 6), //"Default server port"
 		NewCheck(6, 2, otl->settings.srv_local, "Server: Local only") // TODO check value depending on settings
 	};
-	mvwaddstr(wsettings, 3, 2, "Default text editor: ");
+	/*mvwaddstr(wsettings, 3, 2, "Default text editor: ");
 	mvwaddstr(wsettings, 4, 2, "Default image visualizer: ");
-	mvwaddstr(wsettings, 5, 2, "Server port: ");
+	mvwaddstr(wsettings, 5, 2, "Server port: ");*/
 
 	mvwaddstr(wsettings, 3, 23, otl->settings.defed);
 	mvwaddstr(wsettings, 4, 28, otl->settings.defimg);
-	mvwaddstr(wsettings, 5, 15, port);
+	mvwaddstr(wsettings, 5, 15, otl->settings.port);
 	wrefresh(wsettings);
 	int na[] = {3,23,15}; int nb[] = {4,28,15}; int nc[] = {5,15,6};
 	void* a[3] = {&otl->settings.defed, na};
@@ -1359,7 +1374,17 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	int (*func[])(WINDOW*, struct Data*, void*) = {mod_strsetting, mod_strsetting, mod_strsetting, mod_boolsetting};
 	void *args[] = {a, b, c, &otl->settings.srv_local};
 	struct Callback cb = {func, args, 4};
-	navigate(wsettings, emph_color, mobj, cb);
+	for (;;) {
+		mvwaddstr(wsettings, 3, 2, "Default text editor: ");
+		mvwaddstr(wsettings, 4, 2, "Default image visualizer: ");
+		mvwaddstr(wsettings, 5, 2, "Server port: ");
+		int res = navigate(wsettings, emph_color, mobj, cb);
+		if (!res) break;
+		write_settings(otl);
+	}
+	delwin(wsettings);
+	touchwin(main); touchwin(wfiles);
+	wrefresh(main); wrefresh(wfiles);
 	return 1;
 }
 

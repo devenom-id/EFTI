@@ -58,7 +58,7 @@ void server_create(struct TabList* tl) { /*Create server's process*/
 void server_main(struct TabList* tl) { /*server: listen for connections*/
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(tl->settings.port);
+	addr.sin_port = htons(atoi(tl->settings.port));
 	if (!tl->settings.srv_local) addr.sin_addr.s_addr = INADDR_ANY;
 	else inet_aton("127.0.0.1", &addr.sin_addr);
 

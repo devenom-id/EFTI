@@ -193,7 +193,7 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 			if (open(tp1, O_RDONLY) == -1) {ls[0]="Start server";func[0]=launch_create;}
 			else {ls[0]="Stop server";func[0]=launch_stop;}
 			wmove(mwin,0,0);wclrtobot(mwin);
-			wrefresh(win);wrefresh(mwin);
+			touchwin(win);wrefresh(win);wrefresh(mwin);
 		} else break;
 	}
 
