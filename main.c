@@ -18,6 +18,7 @@ int popup_menu(struct TabList *tl, struct Data *data, char* file);
 int main() {
 	setlocale(LC_ALL, "");
 	signal(SIGTERM, SIG_IGN);
+	unlink("log");
 	WINDOW* stdscr = initscr();
 	curs_set(0);
 	noecho();

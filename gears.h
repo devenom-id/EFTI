@@ -93,6 +93,7 @@ struct Mobj {
 	int id;
 	union Objtype object;
 };
+enum MobjType {T_TEXT,T_FIELD,T_CHECKBOX,T_RECTANGLE};
 int popup_menu(struct TabList *otl, struct Data *data, char* file);
 void handleMemError(void* m, const char* str);
 void dialog(WINDOW** wins, const char* s);

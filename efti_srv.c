@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <poll.h>
+#include <errno.h>
 #include <dirent.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -18,6 +19,7 @@
 #include "efti_srv.h"
 #include "libncread/vector.h"
 #include "libncread/ncread.h"
+#include "logger/logger.h"
 
 int get_addr(char **s, char *a) {
 	int p=0; int px=0;
@@ -33,6 +35,10 @@ int get_addr(char **s, char *a) {
 }
 
 void server_create(struct TabList* tl) { /*Create server's process*/
+	WINDOW* stdscr = tl->wobj[0].data->wins[0];
+	WINDOW* main = tl->wobj[0].data->wins[4];
+	WINDOW* wfiles = tl->wobj[0].data->wins[5];
+	WINDOW* wins[] = {stdscr, main, wfiles};
 	char *tmp_path = TMP_PATH;
 	int tmp_size = strlen(tmp_path);
 	char* tp1 = malloc(tmp_size+5+1);
@@ -43,10 +49,19 @@ void server_create(struct TabList* tl) { /*Create server's process*/
 	if (open(tp2, O_RDONLY) != -1) { /*if server exists, don't create another one*/
 		return;
 	}
+	int fd[2];
+	pipe(fd);
 	pid_t pid = fork();
 	if (!pid) {
-		server_main(tl);
+		server_main(tl, fd);
 		exit(0);
+	}
+	char buff[1]={0};
+	read(fd[0], buff, 1);
+	if (!buff[0]) {
+		dialog(wins, "Server failed to initialize. Error on bind(); check the port and address.");
+		free(tp1);free(tp2);
+		return;
 	}
 	FILE *F = fopen(tp2, "w");
 	fprintf(F, "%d\n", pid);
@@ -55,7 +70,7 @@ void server_create(struct TabList* tl) { /*Create server's process*/
 	return;
 }
 
-void server_main(struct TabList* tl) { /*server: listen for connections*/
+void server_main(struct TabList* tl, int* fd) { /*server: listen for connections*/
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(atoi(tl->settings.port));
@@ -66,7 +81,14 @@ void server_main(struct TabList* tl) { /*server: listen for connections*/
 	int serv = socket(AF_INET, SOCK_STREAM, 0);
 	int opt = 1;
 	setsockopt(serv, SOL_SOCKET, SO_REUSEADDR, &opt, (socklen_t)sizeof(opt));
-	int r = bind(serv, (struct sockaddr*)&addr, addsize); /*TODO: check output of this.*/
+	int r = bind(serv, (struct sockaddr*)&addr, addsize);
+	if (r==-1) {
+		write(fd[1], "\0", 1);
+		return;
+	}
+	else {
+		write(fd[1], "\1", 1);
+	}
 	listen(serv, 1);
 	for (;;) {
 		int fd = accept(serv, (struct sockaddr*)&addr, &addsize);
@@ -92,13 +114,13 @@ struct Srvdata get_answ(int fd) {
 	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
 	read(fd, buff, 4);
 	char *pbuff = buff;
-	int size = atoi(pbuff); /*digits*/
-	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, size);
-	size = atoi(pbuff); /*size*/
+	int digits = atoi(pbuff);
+	pbuff = calloc(digits+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
+	read(fd, pbuff, digits);
+	int size = atoi(pbuff);
 	sd.size = size;
 	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, size); /*content*/
+	read(fd, pbuff, size);
 	sd.content=pbuff;
 	return sd;
 }
@@ -108,16 +130,16 @@ struct Srvdata get_fdata(int fd) {
 	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
 	read(fd, buff, 4);
 	char *pbuff = buff;
-	int size = atoi(pbuff); /*digits*/
-	pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, size);
-	size = atoi(pbuff); /*size*/
+	int digits = atoi(pbuff);
+	pbuff = calloc(digits+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
+	read(fd, pbuff, digits);
+	int size = atoi(pbuff);
 	sd.size = size;
 	free(pbuff);
 	char *fdata = malloc(size); handleMemError(fdata, "calloc(2) on get_answ");
 	int p=0;
 	while (size != p) {
-		int r = read(fd, fdata, size-p); /*content*/
+		int r = read(fd, fdata, size-p);
 		fdata += r;
 		p += r;
 	}
@@ -186,7 +208,7 @@ void *server_handle(void* conn) { /*server's core*/
 				DIR *dir = opendir(sd.content);
 				int path_size = sd.size;
 				char *path=calloc(sd.size+1,1); strcpy(path, sd.content);
-				sd = get_answ(fd); // hideDot
+				sd = get_answ(fd);
 				int dotfiles = atoi(sd.content);
 				struct dirent *dnt;
 				struct string files, hstr, attrs;
@@ -205,8 +227,7 @@ void *server_handle(void* conn) { /*server's core*/
 						string_addch(&attrs, FA_EXEC+48);
 					else string_addch(&attrs, 48);
 				}
-				//TODO check if files_size can be adjusted
-				char files_size[11] = {0}; snprintf(files_size, 11, "%d", files.size);
+				char* files_size = calloc(enumdig(files.size)+1, 1); snprintf(files_size, 11, "%d", files.size);
 				char *files_size_digit = itodg(enumdig(files.size));
 				string_add(&hstr, files_size_digit);
 				string_add(&hstr, files_size);
@@ -269,7 +290,7 @@ void *server_handle(void* conn) { /*server's core*/
 				mkdir(sd.content, 0700);
 				break;
 			}
-			case 0: /*disconnected*/
+			case 0:
 			case OP_DISCONNECT: {
 				if (sd.content) free(sd.content);
 				close(fd);
@@ -281,7 +302,7 @@ void *server_handle(void* conn) { /*server's core*/
 	return 0;
 }
 
-void server_kill() { /*kill server if exists*/
+void server_kill() {
 	char *tmp_path = TMP_PATH;
 	char *tp1 = malloc(strlen(tmp_path)+9+1);
 	strcpy(tp1, tmp_path); strcat(tp1, "/efti/pid");
@@ -320,7 +341,6 @@ bindFunc *newBindArr_2(int argc, ...) {
 }
 
 int client_connect(struct TabList *tl, struct Data *data, char* file) {
-	// create a window asking for the address
 	WINDOW* wr = tl->wobj[0].data->wins[4];
 	WINDOW* wfiles = tl->wobj[0].data->wins[5];
 	WINDOW* main = tl->wobj[0].data->wins[4];
@@ -347,7 +367,7 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 		dialog(wins, "There was an error on the format of the address");
 		return 1;
 	}
-	// connect to address
+
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
 	inet_aton(arr[0], &addr.sin_addr);
@@ -359,7 +379,7 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 		return 1;
 	}
 	write(fd, "3471", 4);
-	// create the Wobj and add it to TabList
+
 	add_tab(tabwin, tl);
 	tl->wobj[tl->size-1].data = malloc(sizeof(struct Data));
 	struct Fopt *fopt = malloc(sizeof(struct Fopt));

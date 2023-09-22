@@ -94,8 +94,8 @@ int enumdig(int n) {
 
 void itoa(int n, int d, char*b) {
 	for (int i=d-1; i>=0; i--) {
-		b[i] = (n%10)+48;
-		n /= 10;
+	b[i] = (n%10)+48;
+	n /= 10;
 	}
 }
 
@@ -116,6 +116,7 @@ void uptime(char* buff) {
 }
 
 void dir_up(char **pwd) {
+	if (!strcmp(*pwd, "/")) return;
 	char *tmp = *pwd+strlen(*pwd)-2;
 	while (*tmp != '/') tmp--;
 	*(tmp+1) = 0;
@@ -135,7 +136,7 @@ int list(struct TabList *tl, int dotfiles) {
 	char ***ls = &(wobj->ls);
 	int local = wobj->local;
 	if (!local) {
-		int fd = wobj->fd; // socket connection
+		int fd = wobj->fd;
 		char* pwd = wobj->pwd;
 		int size = strlen(pwd);
 		int digits = enumdig(size);
@@ -152,7 +153,7 @@ int list(struct TabList *tl, int dotfiles) {
 		struct vector vec = string_split(answ.content, '/');
 		vector_pop(&vec);
 		wobj->ls = vec.str;
-		answ = get_answ(fd); // Attrs
+		answ = get_answ(fd);
 		wobj->attrls = answ.content;
 		alph_sort(wobj, vec.size);
 		return vec.size;
@@ -491,9 +492,6 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 			wait(&status);
 			if (status && WIFEXITED(status)) break;
 		}
-		/*FILE *F = fopen("log", "w");
-		fprintf(F, "si_status: %d\nsi_code: %d", status.si_status, status.si_code);
-		fclose(F);*/
 		refresh();
 	}
 	return 1;
@@ -573,12 +571,9 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 			return 1;
 		}
 	}
-
-	/*execution process begins*/
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 
-	if (!W_ISDIR(wobj, wobj->data->ptrs[1], path) && W_ISEXEC(wobj, wobj->data->ptrs[1], path)) {  /*If it's not dir and is executable*/
-		/*prepare argument vector*/
+	if (!W_ISDIR(wobj, wobj->data->ptrs[1], path) && W_ISEXEC(wobj, wobj->data->ptrs[1], path)) {
 		struct vector str;
 		if (buff!=NULL && strlen(buff)) str = string_split(buff, ' ');
 		else {vector_init(&str);};
@@ -593,7 +588,6 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 		str.str = tmpstr;
 		str.size++;
 
-		/*execution*/
 		endwin();
 		int PID = fork();
 		if (!PID) {
@@ -603,7 +597,6 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 		}
 		wait(NULL);
 
-		/*end execution*/
 		struct termios tty, old; tcbreak(&tty, &old);
 		free(tmpstr);
 		printf("\n\033[2K[Presiona una tecla para continuar]\n");
@@ -642,8 +635,6 @@ int isImg(char* file) {
 
 void high_SendOrder(int fd, int order, int dig, size_t size, char* param) {
 	struct string hstr; string_init(&hstr);
-	// order - dig - size - cont
-	// TODO check if size of size[] can be adjusted later to something better
 	char *sz = calloc(dig+1, 1); snprintf(sz, dig+1, "%lu", size);
 	if (order != -1) string_addch(&hstr, order+48);
 	string_add(&hstr, itodg(dig));
@@ -719,14 +710,6 @@ char* high_GetTempFile(char *file) {
 }
 
 int view(struct TabList *tl, struct Data *data, char *file) {
-	/* Si no es local, entonces lo descarga en /tmp/efti/ con un nombre numérico
-	 * pero conservando su extensión. El número empieza en 0 y aumenta por 1,
-	 * y el número del último archivo temporal descargado se guarda en
-	 * /tmp/efti/maxfn. Se ajustan las variables antes del fork para que no sea
-	 * necesario alterar nada del código del proceso hijo para hacerlo compatible.
-	 * Mientras se hace la transacción debería mostrarse un cartel diciendo que
-	 * se está obteniendo el archivo.
-	 */
 	struct Wobj* wobj = get_current_tab(tl);
 	char* pwd=wobj->pwd;
 	int local = wobj->local;
@@ -834,7 +817,6 @@ void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, in
 	if (tl->tmp_path.id && wobj->local) { // remote to local
 		int fd = tl->wobj[tl->tmp_path.id].fd;
 		high_SendOrder(fd, OP_DOWNLOAD, enumdig(spath_sz), spath_sz, spath);
-		//first the success code and then the data
 		if (!get_err_code(fd)) {
 			dialog(wins, "The selected file exceeds the limit of 400MB. Aborted");
 			return;
@@ -911,7 +893,6 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 }
 
 void copy(struct Wobj* wobj, char *A, char *B) {
-	// TODO local send order to copy
 	struct stat st;
 	stat(A, &st);
 	if (S_ISDIR(st.st_mode)) return;
@@ -1127,14 +1108,14 @@ struct Mobj NewText(int y, int x, const char* text) {
 	struct ObjText a;
 	a.text = text;
 	a.yx[0]=y; a.yx[1]=x;
-	struct Mobj m; m.id=0; m.object.text=a;
+	struct Mobj m; m.id=T_TEXT; m.object.text=a;
 	return m;
 }
 struct Mobj NewField(int y, int x, int size) {
 	struct ObjField a;
 	a.size = size;
 	a.yx[0]=y; a.yx[1]=x;
-	struct Mobj m; m.id=1; m.object.field=a;
+	struct Mobj m; m.id=T_FIELD; m.object.field=a;
 	return m;
 }
 struct Mobj NewCheck(int y, int x, int checked, const char* text) {
@@ -1142,27 +1123,27 @@ struct Mobj NewCheck(int y, int x, int checked, const char* text) {
 	a.checked=checked;
 	a.text=text;
 	a.yx[0]=y; a.yx[1]=x;
-	struct Mobj m; m.id=2; m.object.checkbox=a;
+	struct Mobj m; m.id=T_CHECKBOX; m.object.checkbox=a;
 	return m;
 }
 struct Mobj NewRect(int y1, int x1, int y2, int x2) {
 	struct ObjRect a;
 	a.coords[0]=y1; a.coords[1]=x1;
 	a.coords[2]=y2; a.coords[3]=x2;
-	struct Mobj m; m.id=3; m.object.rectangle=a;
+	struct Mobj m; m.id=T_RECTANGLE; m.object.rectangle=a;
 	return m;
 }
 
 void print_mobj(WINDOW* win, int color, struct Mobj mobj) {
 	switch (mobj.id) {
-		case 0: /*text*/ {
+		case T_TEXT: {
 			int * yx = mobj.object.text.yx;
 			wattron(win, COLOR_PAIR(color));
 			mvwaddstr(win, yx[0], yx[1], mobj.object.text.text);
 			wattroff(win, COLOR_PAIR(color));
 			break;
 		}
-		case 1: /*field*/ {
+		case T_FIELD: {
 			int *yx = mobj.object.field.yx;
 			for (int i=0; i<mobj.object.field.size; i++) {
 				mvwaddch(win, yx[0], yx[1]+i, (mvwinch(win, yx[0], yx[1]+i)&A_CHARTEXT)|COLOR_PAIR(color));
@@ -1170,7 +1151,7 @@ void print_mobj(WINDOW* win, int color, struct Mobj mobj) {
 			}
 			break;
 		}
-		case 2: /*checkbox*/ {
+		case T_CHECKBOX: {
 			int *yx = mobj.object.checkbox.yx;
 			char str[5] = {'(', ' ', ')', ' ', 0};
 			if (mobj.object.checkbox.checked) str[1] = 'x';
@@ -1180,7 +1161,7 @@ void print_mobj(WINDOW* win, int color, struct Mobj mobj) {
 			wattroff(win, COLOR_PAIR(color));
 			break;
 		}
-		case 3: /*rectangle*/ {
+		case T_RECTANGLE: {
 			wattron(win, COLOR_PAIR(color));
 			int *coords = mobj.object.rectangle.coords;
 			mvwaddch(win, coords[0], coords[1], ACS_ULCORNER);
@@ -1333,10 +1314,6 @@ int mod_boolsetting(WINDOW* tl, struct Data* data, void* d) {
 }
 
 int settings(struct TabList* tl, struct Data* data, void* d) {
-	/* 1. bool srv_local
-	 * 2. int Server Port
-	 * 3. str Default editor
-	 * 4. str Default image visualizer*/
 	struct TabList *otl = (struct TabList*)d;
 	WINDOW* wr = otl->wobj[0].data->wins[4];
 	WINDOW* wfiles = otl->wobj[0].data->wins[5];
@@ -1356,12 +1333,9 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	struct Mobj mobj[4] = {
 		NewField(3, 23, 15),
 		NewField(4, 28, 15),
-		NewField(5, 15, 6), //"Default server port"
-		NewCheck(6, 2, otl->settings.srv_local, "Server: Local only") // TODO check value depending on settings
+		NewField(5, 15, 6),
+		NewCheck(6, 2, otl->settings.srv_local, "Server: Local only")
 	};
-	/*mvwaddstr(wsettings, 3, 2, "Default text editor: ");
-	mvwaddstr(wsettings, 4, 2, "Default image visualizer: ");
-	mvwaddstr(wsettings, 5, 2, "Server port: ");*/
 
 	mvwaddstr(wsettings, 3, 23, otl->settings.defed);
 	mvwaddstr(wsettings, 4, 28, otl->settings.defimg);
