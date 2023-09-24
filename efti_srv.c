@@ -109,30 +109,30 @@ int get_err_code(int fd) {
 	return buff[0]-48;
 }
 
-struct Srvdata get_answ(int fd) {
+struct Srvdata get_answ(struct TabList* tl, int fd) {
 	struct Srvdata sd;
 	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
-	read(fd, buff, 4);
+	if (!read(fd, buff, 4) && tl) {handleDisconnection(tl);sd.content=NULL;sd.size=-1;return sd;}
 	char *pbuff = buff;
 	int digits = atoi(pbuff);
 	pbuff = calloc(digits+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, digits);
+	if (!read(fd, pbuff, digits) && tl) {handleDisconnection(tl);sd.content=NULL;sd.size=-1;return sd;}
 	int size = atoi(pbuff);
 	sd.size = size;
 	free(pbuff); pbuff = calloc(size+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, size);
+	if (!read(fd, pbuff, size) && tl) {handleDisconnection(tl);sd.content=NULL;sd.size=-1;return sd;}
 	sd.content=pbuff;
 	return sd;
 }
 
-struct Srvdata get_fdata(int fd) {
+struct Srvdata get_fdata(struct TabList* tl, int fd) {
 	struct Srvdata sd;
 	char *buff = calloc(5,1); handleMemError(buff, "calloc(2) on get_answ");
-	read(fd, buff, 4);
+	if (!read(fd, buff, 4) && tl) {handleDisconnection(tl);sd.content=NULL;sd.size=-1;return sd;}
 	char *pbuff = buff;
 	int digits = atoi(pbuff);
 	pbuff = calloc(digits+1, 1); handleMemError(pbuff, "calloc(2) on get_answ");
-	read(fd, pbuff, digits);
+	if (!read(fd, pbuff, digits) && tl) {handleDisconnection(tl);sd.content=NULL;sd.size=-1;return sd;}
 	int size = atoi(pbuff);
 	sd.size = size;
 	free(pbuff);
@@ -140,6 +140,7 @@ struct Srvdata get_fdata(int fd) {
 	int p=0;
 	while (size != p) {
 		int r = read(fd, fdata, size-p);
+		if (!r && tl) {handleDisconnection(tl);sd.content=NULL;sd.size=-1;return sd;}
 		fdata += r;
 		p += r;
 	}
@@ -155,10 +156,17 @@ void *server_handle(void* conn) { /*server's core*/
 		poll(rfd, 1, -1);
 		int order=0;
 		struct Srvdata sd;sd.content=NULL;
-		char buff[1]={0}; read(fd, buff, 1);
+		char buff[1]={0}; int r = read(fd, buff, 1);
+		vlog(&r, "server r", INT, __FILE__, __LINE__);
 		if (buff[0] != 0) {
 			order=buff[0]-48;
-			sd = get_answ(fd);
+			vlog(&order, "order", INT, __FILE__, __LINE__);
+			sd = get_answ(NULL, fd);
+			vlog(&sd.size, "sd.size", INT, __FILE__, __LINE__);
+			if (sd.size==-1) {
+				slog("Client disconnected", __FILE__, __LINE__);
+				return 0;
+			}
 		}
 		switch (order) {
 			case OP_PING: { /*Can be used to disconnect for inactivity*/
@@ -198,7 +206,7 @@ void *server_handle(void* conn) { /*server's core*/
 			case OP_UPLOAD: {
 				char *path = sd.content;
 				FILE *FN = fopen(path, "wb");
-				sd = get_fdata(fd);
+				sd = get_fdata(NULL, fd);
 				fwrite(sd.content, 1, sd.size, FN);
 				fclose(FN);
 				free(path);
@@ -208,7 +216,11 @@ void *server_handle(void* conn) { /*server's core*/
 				DIR *dir = opendir(sd.content);
 				int path_size = sd.size;
 				char *path=calloc(sd.size+1,1); strcpy(path, sd.content);
-				sd = get_answ(fd);
+				sd = get_answ(NULL, fd);
+				if (sd.size==-1) {
+					slog("Client disconnected", __FILE__, __LINE__);
+					return 0;
+				}
 				int dotfiles = atoi(sd.content);
 				struct dirent *dnt;
 				struct string files, hstr, attrs;
@@ -254,12 +266,17 @@ void *server_handle(void* conn) { /*server's core*/
 				string_add(&hstr, home);
 				string_addch(&hstr, '/');
 				write(fd, hstr.str, hstr.size);
+				slog("Server finished order 5", __FILE__, __LINE__);
 				break;
 			}
 			case OP_MOVE: { /*rename or move*/
 				char *A, *B;
 				A = sd.content;
-				sd = get_answ(fd);
+				sd = get_answ(NULL, fd);
+				if (sd.size==-1) {
+					slog("Client disconnected", __FILE__, __LINE__);
+					return 0;
+				}
 				B = sd.content;
 				rename(A, B);
 				free(A);
@@ -268,7 +285,11 @@ void *server_handle(void* conn) { /*server's core*/
 			case OP_COPY: {
 				char *A, *B;
 				A = sd.content;
-				sd = get_answ(fd);
+				sd = get_answ(NULL, fd);
+				if (sd.size==-1) {
+					slog("Client disconnected", __FILE__, __LINE__);
+					return 0;
+				}
 				B = sd.content;
 				copy(NULL, A, B);
 				free(A);
@@ -293,6 +314,7 @@ void *server_handle(void* conn) { /*server's core*/
 			case 0:
 			case OP_DISCONNECT: {
 				if (sd.content) free(sd.content);
+				slog("Client disconnected", __FILE__, __LINE__);
 				close(fd);
 				return 0;
 			}
@@ -320,9 +342,12 @@ void server_kill() {
 	free(tp1);
 }
 
-char* gethome(int fd) {
+char* gethome(struct TabList* tl, int fd) {
 	write(fd, "50000", 5);
-	struct Srvdata sd = get_answ(fd);
+	slog("wrote, now getansw", __FILE__, __LINE__);
+	struct Srvdata sd = get_answ(tl, fd);
+	slog("gotansw", __FILE__, __LINE__);
+	vlog(&sd.size, "gethome sd.size", INT, __FILE__, __LINE__);
 	return sd.content;
 }
 
@@ -404,11 +429,13 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	tl->wobj[tl->size-1].bind.func = newBindArr_2(14, view, updir, hideDot, popup_menu, fileRename,
 						fselect, fmove, fcopy, fdelete, fnew, dnew, client_connect, b_tab_switch, client_disconnect);
 	tl->wobj[tl->size-1].bind.nmemb = 14;
-	char* pwd = gethome(fd);
+	char* pwd = gethome(tl, fd);
 	tl->wobj[tl->size-1].pwd = pwd;
+	slog("client_connect returning", __FILE__, __LINE__);
 	return 1;
 }
-int client_disconnect(struct TabList* tl, struct Data* data, char* f) {
+int client_disconnect(struct TabList* tl, struct Data* data, char* disconnect_remote) {
+	slog("Someone called client_disconnect ._.", __FILE__, __LINE__);
 	struct Wobj* wobj = get_current_tab(tl);
 	free(wobj->attrls);
 	free(wobj->ls);
@@ -418,7 +445,8 @@ int client_disconnect(struct TabList* tl, struct Data* data, char* f) {
 	free(wobj->bind.func);
 	free(wobj->bind.keys);
 	delwin(wobj->win);
-	high_SendOrder(wobj->fd, OP_DISCONNECT, 1, 0, "");
+	if (*disconnect_remote)
+		high_SendOrder(wobj->fd, OP_DISCONNECT, 1, 0, "");
 	close(wobj->fd);
 	WINDOW* tabwin = tl->wobj[0].data->wins[2];
 	del_tab(tabwin, tl);

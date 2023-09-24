@@ -96,6 +96,7 @@ struct Mobj {
 enum MobjType {T_TEXT,T_FIELD,T_CHECKBOX,T_RECTANGLE};
 int popup_menu(struct TabList *otl, struct Data *data, char* file);
 void handleMemError(void* m, const char* str);
+void handleDisconnection(struct TabList* tl);
 void dialog(WINDOW** wins, const char* s);
 void create_dir_if_not_exist(const char* path);
 char *itodg(int dig);

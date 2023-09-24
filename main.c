@@ -11,6 +11,7 @@
 #include <signal.h>
 #include "gears.h"
 #include "efti_srv.h"
+#include "logger/logger.h"
 
 int SERVER_STATUS = 0;
 int popup_menu(struct TabList *tl, struct Data *data, char* file);
@@ -110,6 +111,7 @@ int main() {
 			free(wobj->ls); wobj->ls=NULL;
 		}
 		int size = list(&tl, fdata->dotfiles);
+		if (size == -1) continue;
 
 		int (*func[size])(struct TabList*, struct Data*,void*);void* args[size];
 		char **ls = wobj->ls;
@@ -121,6 +123,7 @@ int main() {
 		wobj->cb=cb;
 
 		int res = menu(&tl, display_files);
+		slog("Menu returned", __FILE__, __LINE__);
 		if (res) {
 			wmove(wfiles,0,0);wclrtobot(wfiles);
 			wrefresh(stdscr);wrefresh(main);wrefresh(wfiles);

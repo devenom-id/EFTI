@@ -12,10 +12,10 @@ typedef int (*bindFunc)(struct TabList*, struct Data*, char *);
 int client_connect(struct TabList *tl, struct Data *data, char* file);
 void server_create(struct TabList* tl);
 void server_kill();
-int client_disconnect(struct TabList* tl, struct Data* data, char* f);
+int client_disconnect(struct TabList* tl, struct Data* data, char* disconnect_remote);
 void server_main(struct TabList* tl, int* fd);
 int get_err_code(int fd);
-struct Srvdata get_answ(int fd);
-struct Srvdata get_fdata(int fd);
+struct Srvdata get_answ(struct TabList* tl, int fd);
+struct Srvdata get_fdata(struct TabList* tl, int fd);
 void* server_handle(void* conn);
 #endif

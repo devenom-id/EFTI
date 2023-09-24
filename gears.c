@@ -38,6 +38,15 @@ void handleMemError(void* m, const char* str) {
 	(void) perror(str);
 	exit(1);
 }
+void handleDisconnection(struct TabList* tl) {
+	WINDOW* stdscr = tl->wobj[0].data->wins[0];
+	WINDOW* main = tl->wobj[0].data->wins[4];
+	WINDOW* wfiles = tl->wobj[0].data->wins[5];
+	WINDOW* wins[] = {stdscr, main, wfiles};
+	dialog(wins, "El cliente ha perdido conexión con el servidor.");
+	char option=0;
+	client_disconnect(tl, NULL, &option);
+}
 
 void dialog(WINDOW** wins, const char* s) {
 	int y,x; getmaxyx(wins[0],y,x);
@@ -56,7 +65,11 @@ void dialog(WINDOW** wins, const char* s) {
 	int ch=wgetch(win);
 	if (ch == 27 || ch == 10) break;
 	}
-	delwin(win); touchwin(wins[1]); wrefresh(wins[2]);
+	delwin(win);
+	touchwin(wins[1]);
+	touchwin(wins[2]);
+	wrefresh(wins[1]);
+	wrefresh(wins[2]);
 }
 
 void create_dir_if_not_exist(const char* path) {
@@ -148,12 +161,21 @@ int list(struct TabList *tl, int dotfiles) {
 		string_add(&str, pwd);
 		string_add(&str, "00011");
 		string_addch(&str, dotfiles+48);
-		write(fd, str.str, str.size);
-		struct Srvdata answ = get_answ(fd);
+		int r = write(fd, str.str, str.size);
+		vlog(&r, "list r", INT, __FILE__, __LINE__);
+		struct Srvdata answ = get_answ(tl, fd);
+		if (answ.size==-1) {
+			slog("Server disconnected", __FILE__, __LINE__);
+			return -1;
+		}
 		struct vector vec = string_split(answ.content, '/');
 		vector_pop(&vec);
 		wobj->ls = vec.str;
-		answ = get_answ(fd);
+		answ = get_answ(tl, fd);
+		if (answ.size==-1) {
+			slog("Server disconnected", __FILE__, __LINE__);
+			return -1;
+		}
 		wobj->attrls = answ.content;
 		alph_sort(wobj, vec.size);
 		return vec.size;
@@ -659,7 +681,7 @@ struct Srvdata high_GetFileData(struct TabList* tl, int fd, char* path) {
 		struct Srvdata sd = {0, NULL};
 		return sd;
 	}
-	return get_fdata(fd);
+	return get_fdata(tl, fd);
 }
 
 void increase_max_tmp(int tmp) {
@@ -822,7 +844,11 @@ void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, in
 			return;
 		}
 		FILE *FN = fopen(path, "wb");
-		struct Srvdata sd = get_fdata(fd);
+		struct Srvdata sd = get_fdata(tl, fd);
+		if (sd.size==-1) {
+			slog("Server disconnected", __FILE__, __LINE__);
+			return;
+		}
 		fwrite(sd.content, 1, sd.size, FN);
 		fclose(FN);
 		if (rm_after_transf) high_SendOrder(fd, OP_DELETE, enumdig(spath_sz), spath_sz, spath);
