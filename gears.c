@@ -545,7 +545,7 @@ int execute(struct TabList *tl, struct Data *data, char* file) {
 
 int execwargs_argsInput(WINDOW* win, struct Data* data, void* n) {
 	char** buff = (char**)n;
-	ampsread(win, buff, 3, 7, 20, 100, 0);
+	ampsread(win, buff, 3, 7, 20, 100, 0, 1);
 	return 1;
 }
 int execwargs_ok(WINDOW* win, struct Data* data, void* n) {
@@ -799,7 +799,7 @@ int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 1, 1, "Name:");
 	wrefresh(win);
 	char *buff;
-	ampsread(win, &buff, 1, 7, 20, 20, 0);
+	ampsread(win, &buff, 1, 7, 20, 20, 0, 1);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) {free(buff);return 1;}
 	char *A = malloc(strlen(pwd)+strlen(file)+1);handleMemError(A, "malloc(2) on fileRename");
@@ -1014,7 +1014,7 @@ int fnew(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 1, 1, "Name:");
 	wrefresh(win);
 	char *buff;
-	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
+	(void) ampsread(win, &buff, 1, 7, 20, 20, 0, 1);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(path, "malloc(2) on fnew");
@@ -1048,7 +1048,7 @@ int dnew(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 1, 1, "Name:");
 	wrefresh(win);
 	char *buff;
-	(void) ampsread(win, &buff, 1, 7, 20, 20, 0);
+	(void) ampsread(win, &buff, 1, 7, 20, 20, 0, 1);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;
 	char *path = malloc(strlen(pwd)+strlen(buff)+1);handleMemError(path, "malloc(2) on dnew");
@@ -1333,7 +1333,7 @@ int mod_strsetting(WINDOW* win, struct Data* data, void* d) {
 	int y = ((int*)x[1])[0];
 	int X = ((int*)x[1])[1];
 	int charlim = ((int*)x[1])[2];
-	ampsread(win, S, y, X, 15, charlim, 0);
+	ampsread(win, S, y, X, 15, charlim, 0, 1);
 	return 1;
 }
 

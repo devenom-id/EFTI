@@ -381,7 +381,7 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 2, 1, "Address:port:");
 	wrefresh(win);
 	char *buff;
-	ampsread(win, &buff, 2, 15, 21, 21, 0);
+	ampsread(win, &buff, 2, 15, 21, 21, 0, 1);
 	delwin(win); touchwin(main); wrefresh(wfiles);
 	if (!buff) {
 		dialog(wins, "You have to write the port and the address");
