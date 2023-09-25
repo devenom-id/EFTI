@@ -162,10 +162,8 @@ int list(struct TabList *tl, int dotfiles) {
 		string_add(&str, "00011");
 		string_addch(&str, dotfiles+48);
 		int r = write(fd, str.str, str.size);
-		vlog(&r, "list r", INT, __FILE__, __LINE__);
 		struct Srvdata answ = get_answ(tl, fd);
 		if (answ.size==-1) {
-			slog("Server disconnected", __FILE__, __LINE__);
 			return -1;
 		}
 		struct vector vec = string_split(answ.content, '/');
@@ -173,7 +171,6 @@ int list(struct TabList *tl, int dotfiles) {
 		wobj->ls = vec.str;
 		answ = get_answ(tl, fd);
 		if (answ.size==-1) {
-			slog("Server disconnected", __FILE__, __LINE__);
 			return -1;
 		}
 		wobj->attrls = answ.content;
@@ -850,7 +847,6 @@ void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, in
 		FILE *FN = fopen(path, "wb");
 		struct Srvdata sd = get_fdata(tl, fd);
 		if (sd.size==-1) {
-			slog("Server disconnected", __FILE__, __LINE__);
 			return;
 		}
 		fwrite(sd.content, 1, sd.size, FN);
