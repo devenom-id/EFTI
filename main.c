@@ -123,7 +123,6 @@ int main() {
 		wobj->cb=cb;
 
 		int res = menu(&tl, display_files);
-		slog("Menu returned", __FILE__, __LINE__);
 		if (res) {
 			wmove(wfiles,0,0);wclrtobot(wfiles);
 			wrefresh(stdscr);wrefresh(main);wrefresh(wfiles);
