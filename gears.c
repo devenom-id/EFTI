@@ -1367,9 +1367,9 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 		NewCheck(6, 2, otl->settings.srv_local, "Server: Local only")
 	};
 
-	mvwaddstr(wsettings, 3, 23, otl->settings.defed);
-	mvwaddstr(wsettings, 4, 28, otl->settings.defimg);
-	mvwaddstr(wsettings, 5, 15, otl->settings.port);
+	mvwaddnstr(wsettings, 3, 23, otl->settings.defed, 15);
+	mvwaddnstr(wsettings, 4, 28, otl->settings.defimg, 15);
+	mvwaddnstr(wsettings, 5, 15, otl->settings.port, 6);
 	wrefresh(wsettings);
 	int na[] = {3,23,15}; int nb[] = {4,28,15}; int nc[] = {5,15,6};
 	void* a[3] = {&otl->settings.defed, na};
