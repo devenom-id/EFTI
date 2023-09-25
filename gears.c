@@ -509,11 +509,9 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 			execvp(tl->settings.defed, argv);
 			exit(1);
 		}
-		for (;;) {
-			int status=0;
-			wait(&status);
-			if (status && WIFEXITED(status)) break;
-		}
+		signal(SIGWINCH, SIG_IGN);
+		wait(NULL);
+		signal(SIGWINCH, SIG_DFL);
 		refresh();
 	}
 	return 1;
@@ -532,7 +530,9 @@ int execute(struct TabList *tl, struct Data *data, char* file) {
 			execl(path, path, NULL);
 			exit(1);
 		}
+		signal(SIGWINCH, SIG_IGN);
 		wait(NULL);
+		signal(SIGWINCH, SIG_DFL);
 		struct termios tty, old; tcbreak(&tty, &old);
 		printf("\n\033[2K[Presiona una tecla para continuar]\n");
 		getchar();
@@ -617,7 +617,9 @@ int execwargs(struct TabList *tl, struct Data *data, char* file) {
 			execv(path, str.str);
 			exit(1);
 		}
+		signal(SIGWINCH, SIG_IGN);
 		wait(NULL);
+		signal(SIGWINCH, SIG_DFL);
 
 		struct termios tty, old; tcbreak(&tty, &old);
 		free(tmpstr);
@@ -759,7 +761,9 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 		exit(1);
 	}
 	int status;
+	signal(SIGWINCH, SIG_IGN);
 	waitpid(PID, &status, 0);
+	signal(SIGWINCH, SIG_DFL);
 	if (!local && WEXITSTATUS(status)) { 
 		WINDOW** w = tl->wobj[0].data->wins;
 		WINDOW* wins[] = {w[0], w[4], w[5]};
