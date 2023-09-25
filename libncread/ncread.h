@@ -8,5 +8,5 @@
 struct string vslice(struct string v,int a, int b);
 char* listostr(struct string l);
 void clrbox(WINDOW* win, int y, int x, int minlim, int vislim);
-int ampsread(WINDOW* win, char** ptr, int y, int x, int vislim, int chlim, int mode);
+int ampsread(WINDOW* win, char** ptr, int y, int x, int vislim, int chlim, int mode, int curs_off);
 #endif

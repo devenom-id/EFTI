@@ -101,7 +101,8 @@ void end(WINDOW* win, int y, int x, int* p, int* sp, int* minlim, int* vislim, i
 	return;
 }
 
-int ampsread(WINDOW* win, char** ptr, int y, int x, int vislim, int chlim, int mode) {
+int ampsread(WINDOW* win, char** ptr, int y, int x, int vislim, int chlim, int mode, int curs_off) {
+	curs_set(1);
 	struct string String;
 	struct string vsliced;
 	string_init(&String); string_init(&vsliced);
@@ -122,8 +123,8 @@ int ampsread(WINDOW* win, char** ptr, int y, int x, int vislim, int chlim, int m
 		if (ch == 127) ch = KEY_BACKSPACE;
 		else if (ch == 8) ch = KEY_BACKSPACE;
 		if (ch == 4) {}
-		else if (ch == 27) {return 1;}
-		else if (ch == '\n') {*ptr = String.str;return 0;}
+		else if (ch == 27) {if (curs_off) curs_set(0); return 1;}
+		else if (ch == '\n') {*ptr = String.str;if (curs_off) curs_set(0);return 0;}
 		else if (ch == KEY_BACKSPACE) {
 			if (!sp) continue;
 			_erase(win, y, x, &p, &sp, &minlim, &vislim, &String, mode);
