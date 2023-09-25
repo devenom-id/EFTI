@@ -157,14 +157,10 @@ void *server_handle(void* conn) { /*server's core*/
 		int order=0;
 		struct Srvdata sd;sd.content=NULL;
 		char buff[1]={0}; int r = read(fd, buff, 1);
-		vlog(&r, "server r", INT, __FILE__, __LINE__);
 		if (buff[0] != 0) {
 			order=buff[0]-48;
-			vlog(&order, "order", INT, __FILE__, __LINE__);
 			sd = get_answ(NULL, fd);
-			vlog(&sd.size, "sd.size", INT, __FILE__, __LINE__);
 			if (sd.size==-1) {
-				slog("Client disconnected", __FILE__, __LINE__);
 				return 0;
 			}
 		}
@@ -218,7 +214,6 @@ void *server_handle(void* conn) { /*server's core*/
 				char *path=calloc(sd.size+1,1); strcpy(path, sd.content);
 				sd = get_answ(NULL, fd);
 				if (sd.size==-1) {
-					slog("Client disconnected", __FILE__, __LINE__);
 					return 0;
 				}
 				int dotfiles = atoi(sd.content);
@@ -266,7 +261,6 @@ void *server_handle(void* conn) { /*server's core*/
 				string_add(&hstr, home);
 				string_addch(&hstr, '/');
 				write(fd, hstr.str, hstr.size);
-				slog("Server finished order 5", __FILE__, __LINE__);
 				break;
 			}
 			case OP_MOVE: { /*rename or move*/
@@ -274,7 +268,6 @@ void *server_handle(void* conn) { /*server's core*/
 				A = sd.content;
 				sd = get_answ(NULL, fd);
 				if (sd.size==-1) {
-					slog("Client disconnected", __FILE__, __LINE__);
 					return 0;
 				}
 				B = sd.content;
@@ -287,7 +280,6 @@ void *server_handle(void* conn) { /*server's core*/
 				A = sd.content;
 				sd = get_answ(NULL, fd);
 				if (sd.size==-1) {
-					slog("Client disconnected", __FILE__, __LINE__);
 					return 0;
 				}
 				B = sd.content;
@@ -314,7 +306,6 @@ void *server_handle(void* conn) { /*server's core*/
 			case 0:
 			case OP_DISCONNECT: {
 				if (sd.content) free(sd.content);
-				slog("Client disconnected", __FILE__, __LINE__);
 				close(fd);
 				return 0;
 			}
@@ -344,10 +335,7 @@ void server_kill() {
 
 char* gethome(struct TabList* tl, int fd) {
 	write(fd, "50000", 5);
-	slog("wrote, now getansw", __FILE__, __LINE__);
 	struct Srvdata sd = get_answ(tl, fd);
-	slog("gotansw", __FILE__, __LINE__);
-	vlog(&sd.size, "gethome sd.size", INT, __FILE__, __LINE__);
 	return sd.content;
 }
 
@@ -431,11 +419,9 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	tl->wobj[tl->size-1].bind.nmemb = 14;
 	char* pwd = gethome(tl, fd);
 	tl->wobj[tl->size-1].pwd = pwd;
-	slog("client_connect returning", __FILE__, __LINE__);
 	return 1;
 }
 int client_disconnect(struct TabList* tl, struct Data* data, char* disconnect_remote) {
-	slog("Someone called client_disconnect ._.", __FILE__, __LINE__);
 	struct Wobj* wobj = get_current_tab(tl);
 	free(wobj->attrls);
 	free(wobj->ls);
