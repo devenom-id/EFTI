@@ -855,6 +855,7 @@ void transfer(struct TabList* tl, struct Wobj* wobj, char* path, char* spath, in
 		}
 		fwrite(sd.content, 1, sd.size, FN);
 		fclose(FN);
+		free(sd.content);sd.content=NULL;sd.size=0;
 		if (rm_after_transf) high_SendOrder(fd, OP_DELETE, enumdig(spath_sz), spath_sz, spath);
 	}
 	else if (!tl->tmp_path.id && !wobj->local) { // local to remote
