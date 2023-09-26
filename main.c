@@ -131,7 +131,6 @@ int main() {
 	endwin();
 	wobj=get_current_tab(&tl);
 	free(wobj->pwd);
-	free(wobj);
 	free(tl.list);
 }
 
