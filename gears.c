@@ -84,6 +84,8 @@ void create_dir_if_not_exist(const char* path) {
 			mkdir(P.str, 0777);
 		}
 	}
+	string_free(&P);
+	vector_free(&str);
 }
 
 char *itodg(int dig) {
@@ -184,9 +186,7 @@ int list(struct TabList *tl, int dotfiles) {
 		if (!strcmp(dt->d_name, ".") || !strcmp(dt->d_name, "..")) continue;
 		if (dotfiles && dt->d_name[0] == '.') continue;
 		*ls = realloc(*ls, sizeof(char*)*(size+1));handleMemError(*ls, "realloc(2) on list");
-		char *s = calloc(256,1);
-		strcpy(s,dt->d_name);
-		(*ls)[size] = s;
+		(*ls)[size] = strdup(dt->d_name);
 		size++;
 	}
 	alph_sort(wobj, size);
@@ -236,6 +236,7 @@ void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
 			int p=0;
 			for (int i=start; i<top; i++) {mvwaddstr(win, p, 0, ls[i]);p++;}
 			wrefresh(win);
+			free(str);
 			return;
 		case 1:
 			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
@@ -246,6 +247,7 @@ void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
 			mvwaddstr(win, ptrs[0]-1, 0, str);
 			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
 			wrefresh(win);
+			free(str);
 			return;
 		case 2:
 			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
@@ -256,12 +258,14 @@ void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
 			mvwaddstr(win, ptrs[0]+1, 0, str);
 			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
 			wrefresh(win);
+			free(str);
 			return;
 		case 3:
 			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]], strlen(ls[ptrs[1]]));
 			if (nopt->underline) wattron(win, A_UNDERLINE); else wattron(win, COLOR_PAIR(5));
 			mvwaddstr(win, ptrs[0], 0, str);
 			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
+			free(str);
 			return;
 	}
 }
@@ -1281,6 +1285,10 @@ void load_settings(struct TabList* tl) {
 		fputs(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PRETTY), F);
 		fclose(F);
 		free(path);free(fpath);
+		json_object_object_del(jobj, "srv_local");
+		json_object_object_del(jobj, "port");
+		json_object_object_del(jobj, "defed");
+		json_object_object_del(jobj, "defimg");
 		return;
 	}
 	FILE* F = fopen(fpath, "r");
@@ -1320,7 +1328,12 @@ void write_settings(struct TabList* tl) {
 	json_object_object_add(jobj, "defimg", json_object_new_string(tl->settings.defimg));
 	fputs(json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PRETTY), F);
 	fclose(F);
-	free(path);free(fpath);
+	free(path);free(fpath);	
+	json_object_object_del(jobj, "srv_local");
+	json_object_object_del(jobj, "port");
+	json_object_object_del(jobj, "defed");
+	json_object_object_del(jobj, "defimg");
+	free(jobj);
 }
 
 int mod_strsetting(WINDOW* win, struct Data* data, void* d) {

@@ -18,13 +18,10 @@ int vector_add(struct vector* sm, char* str) {
 }
 
 int vector_addstr(struct vector* sm, struct string *st) {
-	if (st->size > 50) {return -1;}
+	sm->str = realloc(sm->str, sizeof(char*)*(sm->size+1));
+	sm->str[sm->size] = calloc(st->size+1, 1);
+	strncpy(sm->str[sm->size], st->str, st->size);
 	sm->size++;
-	sm->str = realloc(sm->str, sizeof(char*)*sm->size);
-	sm->str[sm->size-1] = calloc(50, 1);
-	for (int i=0; i<st->size; i++) {
-		sm->str[sm->size-1][i] = st->str[i];
-	}
 	return 0;
 }
 
@@ -46,7 +43,12 @@ int vector_popat(struct vector* sm, int index) {
 	return 0;
 }
 
-void vector_free(struct vector* sm) {free(sm->str);}
+void vector_free(struct vector* sm) {
+	for (int i=0; i<sm->size; i++) {
+		free(sm->str[i]);
+	}
+	free(sm->str);
+}
 
 void ivector_init(struct ivector* sm) {
 	sm->num = malloc(sizeof(int));

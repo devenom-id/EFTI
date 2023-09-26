@@ -82,14 +82,13 @@ int main() {
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 6;
 
-	struct Wobj *wobj = malloc(sizeof(struct Wobj));handleMemError(wobj, "malloc(2) on main");
-	wobj[0].data=&data;
-	wobj[0].bind=bind;
-	wobj[0].local=1;
-	wobj[0].win=wfiles;
-	wobj[0].pwd=pwd;
-	wobj[0].ls = NULL;
-	tl.wobj=wobj;
+	struct Wobj *wobj = get_current_tab(&tl);handleMemError(wobj, "malloc(2) on main");
+	wobj->data=&data;
+	wobj->bind=bind;
+	wobj->local=1;
+	wobj->win=wfiles;
+	wobj->pwd=pwd;
+	wobj->ls = NULL;
 	tl.tmp_path.path=NULL;
 
 	for (;;) {
@@ -103,13 +102,6 @@ int main() {
 
 		struct TCallback cb;
 
-		if (wobj->ls != NULL) {
-			/*free everything*/
-			for (int i=0; i<wobj->cb.nmemb; i++) {
-				free(wobj->ls[i]);
-			}
-			free(wobj->ls); wobj->ls=NULL;
-		}
 		int size = list(&tl, fdata->dotfiles);
 		if (size == -1) continue;
 
@@ -123,12 +115,24 @@ int main() {
 		wobj->cb=cb;
 
 		int res = menu(&tl, display_files);
+		wobj = get_current_tab(&tl);
+		if (wobj->ls != NULL) {
+			/*free everything*/
+			for (int i=0; i<wobj->cb.nmemb; i++) {
+				free(wobj->ls[i]);
+			}
+			free(wobj->ls); wobj->ls=NULL;
+		}
 		if (res) {
 			wmove(wfiles,0,0);wclrtobot(wfiles);
 			wrefresh(stdscr);wrefresh(main);wrefresh(wfiles);
 		} else break;
 	}
 	endwin();
+	wobj=get_current_tab(&tl);
+	free(wobj->pwd);
+	free(wobj);
+	free(tl.list);
 }
 
 int launch_create(struct TabList *tl, struct Data *data, void* d) {
@@ -187,8 +191,8 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	struct TabList tl;
 	tab_init(&tl);
 	struct Wobj *wobj = malloc(sizeof(struct Wobj));handleMemError(wobj, "malloc(2) on popup_menu");
-	wobj[0].bind=bind; wobj[0].ls=ls; wobj[0].cb=cb; wobj[0].data=&_data;wobj[0].local=0;
-	wobj[0].pwd=NULL;wobj[0].win=mwin;
+	wobj->bind=bind; wobj->ls=ls; wobj->cb=cb; wobj->data=&_data;wobj->local=0;
+	wobj->pwd=NULL;wobj->win=mwin;
 	tl.wobj=wobj;
 	for (;;) {
 		int res = menu(&tl, display_opts);
@@ -206,5 +210,6 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 		wrefresh(data->wins[i]);
 	}
 	free(tp1);
+	free(wobj);
 	return 1;
 }
