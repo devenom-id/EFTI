@@ -799,7 +799,7 @@ int fileRename(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 0, x/2-3, "Rename");
 	mvwaddstr(win, 1, 1, "Name:");
 	wrefresh(win);
-	char *buff;
+	char *buff=NULL;
 	ampsread(win, &buff, 1, 7, 20, 20, 0, 1);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) {free(buff);return 1;}
@@ -1014,7 +1014,7 @@ int fnew(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 0, x/2-4, "New file");
 	mvwaddstr(win, 1, 1, "Name:");
 	wrefresh(win);
-	char *buff;
+	char *buff=NULL;
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0, 1);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;
@@ -1048,7 +1048,7 @@ int dnew(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 0, x/2-6, "New directory");
 	mvwaddstr(win, 1, 1, "Name:");
 	wrefresh(win);
-	char *buff;
+	char *buff=NULL;
 	(void) ampsread(win, &buff, 1, 7, 20, 20, 0, 1);
 	delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
 	if (buff==NULL) return 1;

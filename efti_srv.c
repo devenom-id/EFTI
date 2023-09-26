@@ -368,7 +368,7 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	mvwaddstr(win, 0, x/2-8, "Connect to remote");
 	mvwaddstr(win, 2, 1, "Address:port:");
 	wrefresh(win);
-	char *buff;
+	char *buff=NULL;
 	ampsread(win, &buff, 2, 15, 21, 21, 0, 1);
 	delwin(win); touchwin(main); wrefresh(wfiles);
 	if (!buff) {
