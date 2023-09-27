@@ -712,7 +712,12 @@ char* high_GetTempFile(char *file) {
 	create_dir_if_not_exist(tp1);
 	FILE* F = fopen(tp2, "r");
 	if (!F) {
+		char *extension = getExtension(file);
 		increase_max_tmp(0);
+		if (extension) {
+			tp3 = realloc(tp3, tmp_size+7+strlen(extension)+1);
+			strcat(tp3, extension);
+		}
 		return tp3;
 	}
 	struct stat st; stat(tp2, &st);

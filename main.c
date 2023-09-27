@@ -96,7 +96,15 @@ int main() {
 		struct Fopt* fdata = (struct Fopt*)wobj->data->data;
 		wmove(main,0,0);wclrtoeol(main);
 		wattron(main, COLOR_PAIR(4));
-		mvwaddstr(main, 0, 0, wobj->pwd);
+		int pwd_size = strlen(wobj->pwd);
+		if (pwd_size+1 >= main_x) {
+			char *a = wobj->pwd;
+			a += pwd_size-(main_x-1);
+			char *b = calloc(1+pwd_size+1, 1);
+			strcpy(b, "<"); strcat(b, a);
+			mvwaddstr(main, 0, 0, b);
+			free(b);
+		} else mvwaddstr(main, 0, 0, wobj->pwd);
 		wattroff(main, COLOR_PAIR(4));
 		wrefresh(main);
 
