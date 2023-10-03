@@ -54,6 +54,7 @@ struct Tmp_path {
 	int id;
 };
 struct Settings {
+	int hideDot;
 	int srv_local;
 	const char* port;
 	const char* defed;

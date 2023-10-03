@@ -1,4 +1,3 @@
-#include <curses.h>
 #include <json-c/json_object.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -473,8 +472,8 @@ int menu(struct TabList *tl, void (*dcb)(struct TabList*,int,int,int*,int)) {
 			return res;
 		} else {
 			int index = search_binding(ch, bind);
-			data->ptrs[0] = p; data->ptrs[1] = sp;
 			if (index != -1) {
+				data->ptrs[0] = p; data->ptrs[1] = sp;
 				char* param = size ? ls[sp] : NULL;
 				return bind.func[index](tl, data, param);
 			}
@@ -1270,6 +1269,7 @@ void load_settings(struct TabList* tl) {
 	struct stat st;
 	if (stat(fpath, &st) == -1 && errno == ENOENT) {
 		tl->settings.srv_local = 0;
+		tl->settings.hideDot = 0;
 		tl->settings.port = "4545";
 		struct stat st;
 		if (!TERMUX) {
@@ -1284,6 +1284,7 @@ void load_settings(struct TabList* tl) {
 		tl->settings.defimg = TERMUX ? "/data/data/com.termux/files/usr/bin/termux-open" : "/usr/bin/feh";
 		struct json_object* jobj = json_object_new_object();
 		json_object_object_add(jobj, "srv_local", json_object_new_int(0));
+		json_object_object_add(jobj, "hideDot", json_object_new_int(0));
 		json_object_object_add(jobj, "port", json_object_new_string(tl->settings.port));
 		json_object_object_add(jobj, "defed", json_object_new_string(tl->settings.defed));
 		json_object_object_add(jobj, "defimg", json_object_new_string(tl->settings.defimg));
@@ -1292,6 +1293,7 @@ void load_settings(struct TabList* tl) {
 		fclose(F);
 		free(path);free(fpath);
 		json_object_object_del(jobj, "srv_local");
+		json_object_object_del(jobj, "hideDot");
 		json_object_object_del(jobj, "port");
 		json_object_object_del(jobj, "defed");
 		json_object_object_del(jobj, "defimg");
@@ -1303,14 +1305,17 @@ void load_settings(struct TabList* tl) {
 	fclose(F);
 	struct json_object* jobj = json_tokener_parse(buff);
 	struct json_object* lan;
+	struct json_object* hideDot;
 	struct json_object* port;
 	struct json_object* defed;
 	struct json_object* defimg;
 	json_object_object_get_ex(jobj, "srv_local", &lan);
+	json_object_object_get_ex(jobj, "hideDot", &hideDot);
 	json_object_object_get_ex(jobj, "port", &port);
 	json_object_object_get_ex(jobj, "defed", &defed);
 	json_object_object_get_ex(jobj, "defimg", &defimg);
 	tl->settings.srv_local = json_object_get_int(lan);
+	tl->settings.hideDot = json_object_get_int(hideDot);
 	tl->settings.port = json_object_get_string(port);
 	tl->settings.defed = json_object_get_string(defed);
 	tl->settings.defimg = json_object_get_string(defimg);
@@ -1329,6 +1334,7 @@ void write_settings(struct TabList* tl) {
 	FILE* F = fopen(fpath, "w");
 	struct json_object* jobj = json_object_new_object();
 	json_object_object_add(jobj, "srv_local", json_object_new_int(tl->settings.srv_local));
+	json_object_object_add(jobj, "hideDot", json_object_new_int(tl->settings.hideDot));
 	json_object_object_add(jobj, "port", json_object_new_string(tl->settings.port));
 	json_object_object_add(jobj, "defed", json_object_new_string(tl->settings.defed));
 	json_object_object_add(jobj, "defimg", json_object_new_string(tl->settings.defimg));
@@ -1336,6 +1342,7 @@ void write_settings(struct TabList* tl) {
 	fclose(F);
 	free(path);free(fpath);	
 	json_object_object_del(jobj, "srv_local");
+	json_object_object_del(jobj, "hideDot");
 	json_object_object_del(jobj, "port");
 	json_object_object_del(jobj, "defed");
 	json_object_object_del(jobj, "defimg");
@@ -1367,7 +1374,7 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	WINDOW* stdscr = otl->wobj[0].data->wins[0];
 	WINDOW* wins[] = {stdscr, main, wfiles};
 	int y, x; getmaxyx(stdscr, y, x);
-	WINDOW* wsettings = newwin(9, 45, y/2-4, x/2-22);
+	WINDOW* wsettings = newwin(10, 45, y/2-4, x/2-22);
 	getmaxyx(wsettings, y, x);
 	wbkgd(wsettings, COLOR_PAIR(1));
 	keypad(wsettings, 1);
@@ -1375,11 +1382,12 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	mvwaddstr(wsettings, 1, x/2-4, "Settings");
 	wrefresh(wsettings);
 	int emph_color[2] = {2, 4};
-	struct Mobj mobj[4] = {
+	struct Mobj mobj[5] = {
 		NewField(3, 23, 15),
 		NewField(4, 28, 15),
 		NewField(5, 15, 6),
-		NewCheck(6, 2, otl->settings.srv_local, "Server: Local only")
+		NewCheck(6, 2, otl->settings.hideDot, "Hide dot files by default"),
+		NewCheck(7, 2, otl->settings.srv_local, "Server: Local only")
 	};
 
 	mvwaddnstr(wsettings, 3, 23, otl->settings.defed, 15);
@@ -1390,9 +1398,9 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	void* a[3] = {&otl->settings.defed, na};
 	void* b[2] = {&otl->settings.defimg, nb};
 	void* c[2] = {&otl->settings.port, &nc};
-	int (*func[])(WINDOW*, struct Data*, void*) = {mod_strsetting, mod_strsetting, mod_strsetting, mod_boolsetting};
-	void *args[] = {a, b, c, &otl->settings.srv_local};
-	struct Callback cb = {func, args, 4};
+	int (*func[])(WINDOW*, struct Data*, void*) = {mod_strsetting, mod_strsetting, mod_strsetting, mod_boolsetting, mod_boolsetting};
+	void *args[] = {a, b, c, &otl->settings.hideDot, &otl->settings.srv_local};
+	struct Callback cb = {func, args, 5};
 	for (;;) {
 		mvwaddstr(wsettings, 3, 2, "Default text editor: ");
 		mvwaddstr(wsettings, 4, 2, "Default image visualizer: ");

@@ -19,7 +19,6 @@ int popup_menu(struct TabList *tl, struct Data *data, char* file);
 int main() {
 	setlocale(LC_ALL, "");
 	signal(SIGTERM, SIG_IGN);
-	unlink("log");
 	WINDOW* stdscr = initscr();
 	curs_set(0);
 	noecho();
@@ -78,7 +77,7 @@ int main() {
 						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs, client_connect, b_tab_switch};
 	bind.keys = keys; bind.func = binfunc; bind.nmemb=15;
 
-	struct Data data; struct Fopt fdata; fdata.dotfiles=0; data.data=&fdata;
+	struct Data data; struct Fopt fdata; fdata.dotfiles=tl.settings.hideDot; data.data=&fdata;
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};
 	data.wins=wins; data.wins_size = 6;
 

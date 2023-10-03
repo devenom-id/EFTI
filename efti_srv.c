@@ -396,7 +396,7 @@ int client_connect(struct TabList *tl, struct Data *data, char* file) {
 	add_tab(tabwin, tl);
 	tl->wobj[tl->size-1].data = malloc(sizeof(struct Data));
 	struct Fopt *fopt = malloc(sizeof(struct Fopt));
-	fopt->dotfiles=0;
+	fopt->dotfiles=tl->settings.hideDot;
 	tl->tmp_path.path = NULL;
 	tl->wobj[tl->size-1].data->data = fopt;
 	tl->wobj[tl->size-1].data->wins_size = tl->wobj[0].data->wins_size;
