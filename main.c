@@ -181,12 +181,12 @@ int popup_menu(struct TabList *otl, struct Data *data, char* file) {
 	if (open(tp1, O_RDONLY) == -1) {fname="Start server"; fn=launch_create;}
 	else {fname="Stop server";fn=launch_stop;}
 
-	char* ls[4] = {fname, "Quick launcher", "Settings", "Close"};
+	char* ls[5] = {fname, "Quick launcher", "Settings", "About", "Close"};
 	struct TCallback cb; struct Data _data; struct Binding bind;
 
-	int (*func[4])(struct TabList*, struct Data*, void*) = {fn, NULL, settings, menu_close};
-	void *args[4] = {otl, NULL, otl, NULL};
-	cb.func=func;cb.args=args;cb.nmemb=4;
+	int (*func[5])(struct TabList*, struct Data*, void*) = {fn, NULL, settings, about, menu_close};
+	void *args[5] = {otl, NULL, otl, otl, NULL};
+	cb.func=func;cb.args=args;cb.nmemb=5;
 
 	bind.nmemb=0;
 

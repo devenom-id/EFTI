@@ -147,4 +147,5 @@ void print_mobj(WINDOW* win, int color, struct Mobj mobj);
 int navigate(WINDOW* win, int emph_color[2], struct Mobj *mobj, struct Callback cb);
 void load_settings(struct TabList* tl);
 int settings(struct TabList* tl, struct Data* data, void* d);
+int about(struct TabList* tl, struct Data* data, void* d);
 #endif

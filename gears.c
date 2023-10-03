@@ -1415,6 +1415,42 @@ int settings(struct TabList* tl, struct Data* data, void* d) {
 	return 1;
 }
 
+int about(struct TabList* tl, struct Data* data, void* d) {
+	struct TabList *otl = (struct TabList*)d;
+	WINDOW* wr = otl->wobj[0].data->wins[4];
+	WINDOW* wfiles = otl->wobj[0].data->wins[5];
+	WINDOW* main = otl->wobj[0].data->wins[4];
+	WINDOW* tabwin = otl->wobj[0].data->wins[2];
+	WINDOW* stdscr = otl->wobj[0].data->wins[0];
+	WINDOW* wins[] = {stdscr, main, wfiles};
+	int y, x; getmaxyx(stdscr, y, x);
+	WINDOW* wabout = newwin(12, 62, y/2-6, x/2-31);
+	WINDOW* wtext = derwin(wabout, 10, 58, 1, 1);
+	getmaxyx(wabout, y, x);
+	wbkgd(wabout, COLOR_PAIR(1));
+	wbkgd(wtext, COLOR_PAIR(1));
+	keypad(wabout, 1);
+	box(wabout, ACS_VLINE, ACS_HLINE);
+	mvwaddstr(wabout, 0, 1, "About EFTI");
+	mvwaddstr(wtext, 0, 0, "EFTI is a file transfer cli app written in C by Muhammad Bakdunes. It's the improved version of the previous EFT, both created as a hobby and practice.");
+	mvwaddstr(wtext, 4, 0, "If you encounter any bugs please report it to\n<mohamad.bakdounes@hotmail.com>");
+	mvwaddstr(wtext, 7, 58/2-19, "Follow me on Github: VENOM-InstantDeath");
+	wattron(wtext, COLOR_PAIR(5));
+	mvwaddstr(wtext, 9, 58/2-3, "[Close]");
+	wattroff(wtext, COLOR_PAIR(5));
+	touchwin(wabout);
+	wrefresh(wabout);
+	wrefresh(wtext);
+	for (;;) {
+		int ch = wgetch(wabout);
+		if (ch==10||ch==27) break;
+	}
+	delwin(wtext);
+	delwin(wabout);
+	touchwin(main); touchwin(wfiles);
+	wrefresh(main); wrefresh(wfiles);
+	return 1;
+}
 /*
 󰙯  
 */
