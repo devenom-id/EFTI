@@ -72,10 +72,10 @@ int main() {
 	strcat(pwd, "/");
 
 	struct Binding bind;
-	int keys[15] = {'x','v','u','h','M','r','s','m','c','D','n','N', 'X', 'C', 9};
-	int (*binfunc[15])(struct TabList*, struct Data*, char *) = {execute, view, updir, hideDot, popup_menu, fileRename,
-						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs, client_connect, b_tab_switch};
-	bind.keys = keys; bind.func = binfunc; bind.nmemb=15;
+	int keys[16] = {'x','v','u','h','M','r','s','m','c','D','n','N', 'X', 'C', 9, '?'};
+	int (*binfunc[16])(struct TabList*, struct Data*, char *) = {execute, view, updir, hideDot, popup_menu, fileRename,
+						fselect, fmove, fcopy, fdelete, fnew, dnew, execwargs, client_connect, b_tab_switch, help};
+	bind.keys = keys; bind.func = binfunc; bind.nmemb=16;
 
 	struct Data data; struct Fopt fdata; fdata.dotfiles=tl.settings.hideDot; data.data=&fdata;
 	WINDOW* wins[6] = {stdscr, upbar, tabwin, lowbar, main, wfiles};

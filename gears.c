@@ -1,3 +1,4 @@
+#include <curses.h>
 #include <json-c/json_object.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -1447,6 +1448,117 @@ int about(struct TabList* tl, struct Data* data, void* d) {
 	}
 	delwin(wtext);
 	delwin(wabout);
+	touchwin(main); touchwin(wfiles);
+	wrefresh(main); wrefresh(wfiles);
+	return 1;
+}
+
+void mscroll_print_lines(WINDOW* win, char* ls[][2], int lines, int mode, int y) {
+	if (mode) {
+		wattron(win, COLOR_PAIR(5));
+		mvwaddstr(win, y, 0, ls[lines][0]);
+		wattroff(win, COLOR_PAIR(5));
+		waddch(win, ' ');
+		waddstr(win, ls[lines][1]);
+		return;
+	}
+	wmove(win,0,0);
+	for (int i=0; i<lines-1; i++) {
+		wattron(win, COLOR_PAIR(5));
+		mvwaddstr(win, i, 0, ls[i][0]);
+		wattroff(win, COLOR_PAIR(5));
+		waddch(win, ' ');
+		waddstr(win, ls[i][1]);
+		waddch(win, '\n');
+	}
+	wattron(win, COLOR_PAIR(5));
+	waddstr(win, ls[lines-1][0]);
+	wattroff(win, COLOR_PAIR(5));
+	waddch(win, ' ');
+	waddstr(win, ls[lines-1][1]);
+}
+
+int mscroll(WINDOW* win, WINDOW* ogw, int y, int x, char* ls[][2], int size) {
+	/*
+	 * y es limite inferior, 0 es el limite superior.
+	 * - No permitir scroll si lines es menor que y
+	 * Para obtener las líneas dividir por x, sumar 1
+	 * y sumar 1 por cada ocurrencia de '\n'
+	 */
+	int lines=0;
+	for (int i=0; i<size; i++) {
+		int a=strlen(ls[i][0]);
+		int b=strlen(ls[i][1]);
+		lines += (a+b+1)/x+1;
+	}
+	int e = 0;
+	mscroll_print_lines(win, ls, y, 0, 0);
+	for (;;) {
+		int ch = wgetch(win);
+		if (ch == 10 || ch == 27) return 1;
+		if (lines < y) continue;
+		switch (ch) {
+			case KEY_UP:
+				if (!e) continue;
+				wscrl(win, -1);
+				mscroll_print_lines(win, ls, e-1, 1, 0);
+				e--;
+				mvwaddch(ogw, 11, 34, e+'0');
+				wrefresh(ogw);
+				break;
+			case KEY_DOWN:
+				if (e+y==lines) continue;
+				wscrl(win, 1);
+				mscroll_print_lines(win, ls, e+y, 1, y-1);
+				e++;
+				mvwaddch(ogw, 11, 34, e+'0');
+				wrefresh(ogw);
+				break;
+		}
+	}
+}
+
+int help(struct TabList* tl, struct Data* data, char* d) {
+	WINDOW* wr = tl->wobj[0].data->wins[4];
+	WINDOW* wfiles = tl->wobj[0].data->wins[5];
+	WINDOW* main = tl->wobj[0].data->wins[4];
+	WINDOW* tabwin = tl->wobj[0].data->wins[2];
+	WINDOW* stdscr = tl->wobj[0].data->wins[0];
+	WINDOW* wins[] = {stdscr, main, wfiles};
+	int y, x; getmaxyx(stdscr, y, x);
+	WINDOW* whelp = newwin(12, 40, y/2-6, x/2-20);
+	WINDOW* wmenu = derwin(whelp, 10, 38, 1, 1);
+	getmaxyx(wmenu, y, x);
+	wbkgd(whelp, COLOR_PAIR(1));
+	wbkgd(wmenu, COLOR_PAIR(1));
+	keypad(wmenu, 1);
+	scrollok(wmenu, 1);
+	box(whelp, ACS_VLINE, ACS_HLINE);
+	mvwaddstr(whelp, 0, 1, "Help");
+	mvwaddstr(whelp, 11, 32, "(10/17)");
+	wrefresh(whelp);
+	char *ls[17][2] = {
+		{" ? ", "Show this help"},
+		{" v ", "View"},
+		{" u ", "Dir up"},
+		{" h ", "Toggle hide dotfiles"},
+		{" M ", "Display menu"},
+		{" r ", "Rename"},
+		{" s ", "Select"},
+		{" m ", "Move"},
+		{" c ", "Copy"},
+		{" D ", "Delete"},
+		{" n ", "New file"},
+		{" N ", "New dir"},
+		{" x ", "Execute program"},
+		{" X ", "Execute program with arguments"},
+		{" C ", "Connect to server"},
+		{" TAB ", "Switch between tabs"},
+		{" ENTER ", "Edit file or access dir"}
+	};
+	mscroll(wmenu, whelp, y, x, ls, 17);
+	delwin(wmenu);
+	delwin(whelp);
 	touchwin(main); touchwin(wfiles);
 	wrefresh(main); wrefresh(wfiles);
 	return 1;

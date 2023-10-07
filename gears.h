@@ -148,4 +148,5 @@ int navigate(WINDOW* win, int emph_color[2], struct Mobj *mobj, struct Callback 
 void load_settings(struct TabList* tl);
 int settings(struct TabList* tl, struct Data* data, void* d);
 int about(struct TabList* tl, struct Data* data, void* d);
+int help(struct TabList* tl, struct Data* data, char* d);
 #endif
