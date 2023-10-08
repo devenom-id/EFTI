@@ -1,4 +1,3 @@
-#include <curses.h>
 #include <json-c/json_object.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -147,6 +146,12 @@ void dir_cd(char **pwd, char *dir) {
 }
 
 int list(struct TabList *tl, int dotfiles) {
+	WINDOW* wr = tl->wobj[0].data->wins[4];
+	WINDOW* wfiles = tl->wobj[0].data->wins[5];
+	WINDOW* main = tl->wobj[0].data->wins[4];
+	WINDOW* tabwin = tl->wobj[0].data->wins[2];
+	WINDOW* stdscr = tl->wobj[0].data->wins[0];
+	WINDOW* wins[] = {stdscr, main, wfiles};
 	struct Wobj *wobj = get_current_tab(tl);
 	char ***ls = &(wobj->ls);
 	int local = wobj->local;
@@ -182,6 +187,11 @@ int list(struct TabList *tl, int dotfiles) {
 	int size = 0;
 	struct dirent *dt;
 	DIR *dir = opendir(wobj->pwd);
+	if (!dir && errno == EACCES) {
+		dialog(wins, "Opendir error: Permission denied");
+		dir_up(&wobj->pwd);
+		return -1;
+	}
 	while ((dt=readdir(dir)) != NULL) {
 		if (!strcmp(dt->d_name, ".") || !strcmp(dt->d_name, "..")) continue;
 		if (dotfiles && dt->d_name[0] == '.') continue;
@@ -235,7 +245,6 @@ void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
 			if (size < top) { top = size; }
 			int p=0;
 			for (int i=start; i<top; i++) {mvwaddstr(win, p, 0, ls[i]);p++;}
-			wrefresh(win);
 			free(str);
 			return;
 		case 1:
@@ -246,7 +255,6 @@ void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
 			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]-1], strlen(ls[ptrs[1]-1]));
 			mvwaddstr(win, ptrs[0]-1, 0, str);
 			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
-			wrefresh(win);
 			free(str);
 			return;
 		case 2:
@@ -257,7 +265,6 @@ void display_opts(struct TabList *tl, int start, int top, int* ptrs, int mode) {
 			memset(str, ' ', nopt->str_size-1);strncpy(str, ls[ptrs[1]+1], strlen(ls[ptrs[1]+1]));
 			mvwaddstr(win, ptrs[0]+1, 0, str);
 			if (nopt->underline) wattroff(win, A_UNDERLINE); else wattroff(win, COLOR_PAIR(5));
-			wrefresh(win);
 			free(str);
 			return;
 		case 3:
@@ -348,7 +355,6 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 				p++;
 				free(path);
 			}
-			wrefresh(win);
 			return;
 		case 1:
 			len = strlen(ls[ptrs[1]]);
@@ -369,7 +375,6 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			if (W_ISDIR(wobj, ptrs[1]-1, path)) mvwaddch(win, ptrs[0]-1, nsize+2, '/');
 			free(path);
 			wattroff(win, A_UNDERLINE);
-			wrefresh(win);
 			return;
 		case 2:
 			len = strlen(ls[ptrs[1]]);
@@ -390,7 +395,6 @@ void display_files(struct TabList *tl, int start, int top, int *ptrs, int mode) 
 			if (W_ISDIR(wobj, ptrs[1]+1, path)) mvwaddch(win, ptrs[0]+1, nsize+2, '/');
 			free(path);
 			wattroff(win, A_UNDERLINE);
-			wrefresh(win);
 			return;
 		case 3:
 			if (!size) return;
@@ -910,7 +914,23 @@ int fmove(struct TabList *tl, struct Data *data, char* file) {
 		if (tl->point != tl->tmp_path.id) {  // if trying to move to a different device
 			transfer(tl, wobj, path, spath, 1);
 		}
-		else if (local) {int r = rename(spath, path); handleError(r, -1, "rename");}
+		else if (local) {
+			int r = rename(spath, path);
+			vlog(&r, "r", INT, __FILE__, __LINE__);
+			vlog(&errno, "errno", INT, __FILE__, __LINE__);
+			if (r==-1 && errno==EXDEV) {
+				slog("Reached", __FILE__, __LINE__);
+				vlog(s, "s", STR, __FILE__, __LINE__);
+				vlog(path, "path", STR, __FILE__, __LINE__);
+				char *spathcp = strdup(spath);
+				fcopy(tl, data, NULL);
+				vlog(spathcp, "spathcp", STR, __FILE__, __LINE__);
+				int r = unlink(spathcp); handleError(r, -1, "unlink");
+				free(path);
+				delwin(win); touchwin(data->wins[4]); wrefresh(data->wins[4]);
+				return 1;
+			} else handleError(r, -1, "rename");
+		}
 		else {
 			int spath_sz = strlen(spath); int path_sz = strlen(path);
 			high_SendOrder(fd, OP_MOVE, enumdig(spath_sz), spath_sz, spath);
