@@ -129,20 +129,44 @@ void uptime(char* buff) {
 	sprintf(buff, "%d days, %d hours", (int)si.uptime/86400, (int)si.uptime/3600);
 }
 
-void dir_up(char **pwd) {
+void dir_up(struct TabList* tl, char **pwd) {
+	WINDOW* wr = tl->wobj[0].data->wins[4];
+	WINDOW* wfiles = tl->wobj[0].data->wins[5];
+	WINDOW* main = tl->wobj[0].data->wins[4];
+	WINDOW* tabwin = tl->wobj[0].data->wins[2];
+	WINDOW* stdscr = tl->wobj[0].data->wins[0];
+	WINDOW* wins[] = {stdscr, main, wfiles};
 	if (!strcmp(*pwd, "/")) return;
+	char* old = strdup(*pwd);
 	char *tmp = *pwd+strlen(*pwd)-2;
 	while (*tmp != '/') tmp--;
 	*(tmp+1) = 0;
 	*pwd = realloc(*pwd, strlen(*pwd)+1);handleMemError(*pwd, "realloc(2) on dir_up");
+	if (!opendir(*pwd) && errno == EACCES) {
+		dialog(wins, "Opendir error: Permission denied");
+		free(*pwd);
+		*pwd = old;
+	}	
 }
 
-void dir_cd(char **pwd, char *dir) {
+void dir_cd(struct TabList* tl, char **pwd, char *dir) {
+	WINDOW* wr = tl->wobj[0].data->wins[4];
+	WINDOW* wfiles = tl->wobj[0].data->wins[5];
+	WINDOW* main = tl->wobj[0].data->wins[4];
+	WINDOW* tabwin = tl->wobj[0].data->wins[2];
+	WINDOW* stdscr = tl->wobj[0].data->wins[0];
+	WINDOW* wins[] = {stdscr, main, wfiles};
+	char* old = strdup(*pwd);
 	int size = strlen(*pwd)+strlen(dir)+2;
 	*pwd = realloc(*pwd, size);handleMemError(*pwd, "realloc(2) on dir_cd");
 	strcat(*pwd, dir);
 	(*pwd)[size-2] = '/';
 	(*pwd)[size-1] = 0;
+	if (!opendir(*pwd) && errno == EACCES) {
+		dialog(wins, "Opendir error: Permission denied");
+		free(*pwd);
+		*pwd = old;
+	}
 }
 
 int list(struct TabList *tl, int dotfiles) {
@@ -187,11 +211,6 @@ int list(struct TabList *tl, int dotfiles) {
 	int size = 0;
 	struct dirent *dt;
 	DIR *dir = opendir(wobj->pwd);
-	if (!dir && errno == EACCES) {
-		dialog(wins, "Opendir error: Permission denied");
-		dir_up(&wobj->pwd);
-		return -1;
-	}
 	while ((dt=readdir(dir)) != NULL) {
 		if (!strcmp(dt->d_name, ".") || !strcmp(dt->d_name, "..")) continue;
 		if (dotfiles && dt->d_name[0] == '.') continue;
@@ -492,7 +511,7 @@ int handleFile(struct TabList *tl, struct Data *data, void* f) {
 	char* pwd = wobj->pwd;
 	int local = wobj->local;
 	char path[strlen(pwd)+strlen(name)+1];strcpy(path,pwd);strcat(path,name);
-	if (W_ISDIR(wobj, wobj->data->ptrs[1], path)) {dir_cd(&pwd, name);wobj->pwd=pwd;}
+	if (W_ISDIR(wobj, wobj->data->ptrs[1], path)) {dir_cd(tl, &pwd, name);wobj->pwd=pwd;}
 	else {
 		endwin();
 		int pid = fork();
@@ -782,7 +801,7 @@ int view(struct TabList *tl, struct Data *data, char *file) {
 	return 1;
 }
 
-int updir(struct TabList *tl, struct Data *data, char* file) {struct Wobj *wobj = get_current_tab(tl);dir_up(&(wobj->pwd));return 1;}
+int updir(struct TabList *tl, struct Data *data, char* file) {struct Wobj *wobj = get_current_tab(tl);dir_up(tl, &(wobj->pwd));return 1;}
 
 int hideDot(struct TabList *tl, struct Data *data, char* file) {
 	struct Fopt* fdata = (struct Fopt*)data->data;
